@@ -27,6 +27,8 @@ def run_delegate_probe(probe: str) -> dict:
             }
         )
         env.pop("RAILWAY_ENVIRONMENT", None)
+        env.pop("OPENAI_API_KEY", None)
+        env.pop("OPENAI_PERSONA_MODEL", None)
 
         completed = subprocess.run(
             [sys.executable, "-c", probe],
@@ -151,13 +153,13 @@ def counts():
         db.close()
 
 
-def create_delegate(headers=alice_headers, username="alice-research-ai"):
+def create_delegate(headers=alice_headers, ai_name="Research", traits=None):
     return client.post(
         "/ai/delegates",
         json={
-            "username": username,
-            "display_name": "Alice Research AI",
-            "public_description": "Reviews proposals for Alice.",
+            "ai_name": ai_name,
+            "persona_traits": traits or ["Science", "Governance"],
+            "human_seed": "Review proposals with calm public-interest reasoning.",
             "model_identity": "delegate-policy-v1",
         },
         headers=headers,
@@ -203,20 +205,24 @@ class AiDelegateManagementTests(unittest.TestCase):
             """
             missing = client.get("/ai/delegates")
             created = create_delegate()
-            duplicate = create_delegate()
-            reserved = create_delegate(username="supernova-ai")
+            second_same_name = create_delegate()
+            manual_handle = client.post(
+                "/ai/delegates",
+                json={"username": "alice-custom", "ai_name": "Custom", "persona_traits": ["Science"]},
+                headers=alice_headers,
+            )
             system_type = client.post(
                 "/ai/delegates",
-                json={"username": "system-copy", "display_name": "System Copy", "ai_actor_type": "system_protocol_agent"},
+                json={"ai_name": "System Copy", "persona_traits": ["Governance"], "ai_actor_type": "system_protocol_agent"},
                 headers=alice_headers,
             )
             listed = client.get("/ai/delegates", headers=alice_headers)
-            profile = client.get("/ai-actors/alice-research-ai")
+            profile = client.get(f"/ai-actors/{created.json().get('delegate', {}).get('username')}")
             result = {
                 "missing_status": missing.status_code,
                 "created_status": created.status_code,
-                "duplicate_status": duplicate.status_code,
-                "reserved_status": reserved.status_code,
+                "second_same_name_status": second_same_name.status_code,
+                "manual_handle_status": manual_handle.status_code,
                 "system_type_status": system_type.status_code,
                 "delegate": created.json().get("delegate"),
                 "listed": listed.json(),
@@ -231,17 +237,160 @@ class AiDelegateManagementTests(unittest.TestCase):
 
         self.assertEqual(result["missing_status"], 401)
         self.assertEqual(result["created_status"], 200)
-        self.assertEqual(result["duplicate_status"], 409)
-        self.assertEqual(result["reserved_status"], 400)
+        self.assertEqual(result["second_same_name_status"], 200)
+        self.assertEqual(result["manual_handle_status"], 400)
         self.assertEqual(result["system_type_status"], 403)
         self.assertEqual(result["delegate"]["species"], "ai")
         self.assertEqual(result["delegate"]["ai_actor_type"], "principal_delegate")
         self.assertEqual(result["delegate"]["custodian_user_id"], result["listed"]["delegates"][0]["custodian_user_id"])
         self.assertEqual(result["delegate"]["custody_label"], "Delegate of @alice")
-        self.assertEqual(result["listed"]["count"], 1)
-        self.assertEqual(result["profile"]["username"], "alice-research-ai")
+        self.assertEqual(result["delegate"]["persona_traits"], ["Science", "Governance"])
+        self.assertTrue(result["delegate"]["persona_hash"])
+        self.assertEqual(result["delegate"]["legal_status"], "custodied_delegate_v1")
+        self.assertEqual(result["listed"]["count"], 2)
+        self.assertTrue(result["profile"]["username"].startswith("alice-research"))
         self.assertEqual(result["profile"]["custody_label"], "Delegate of @alice")
-        self.assertEqual(result["counts"]["harmonizers"], 4)
+        self.assertEqual(result["counts"]["harmonizers"], 5)
+
+    def test_persona_genesis_validates_traits_and_keeps_handles_server_generated(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            no_traits = client.post(
+                "/ai/delegates/persona-draft",
+                json={"ai_name": "Nova", "traits": []},
+                headers=alice_headers,
+            )
+            too_many = client.post(
+                "/ai/delegates/persona-draft",
+                json={
+                    "ai_name": "Nova",
+                    "traits": ["Science", "Art", "Technology", "Philosophy", "Law", "Medicine"],
+                },
+                headers=alice_headers,
+            )
+            valid = client.post(
+                "/ai/delegates/persona-draft",
+                json={"ai_name": "Nova", "traits": ["Science", "AI Safety"], "human_seed": "Care about review quality."},
+                headers=alice_headers,
+            )
+            manual_prefix = client.post(
+                "/ai/delegates",
+                json={"username": "bob-nova", "ai_name": "Nova", "persona_traits": ["Science"]},
+                headers=alice_headers,
+            )
+            created = client.post(
+                "/ai/delegates",
+                json={
+                    "ai_name": "Nova",
+                    "persona_traits": ["Science", "AI Safety"],
+                    "persona_draft": valid.json().get("persona"),
+                    "model_identity": "delegate-policy-v1",
+                },
+                headers=alice_headers,
+            )
+            profile = client.get(f"/ai-actors/{created.json().get('delegate', {}).get('username')}")
+            result = {
+                "no_traits_status": no_traits.status_code,
+                "too_many_status": too_many.status_code,
+                "valid_status": valid.status_code,
+                "manual_prefix_status": manual_prefix.status_code,
+                "persona": valid.json().get("persona"),
+                "created_status": created.status_code,
+                "delegate": created.json().get("delegate"),
+                "profile": profile.json().get("actor"),
+            }
+            print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_delegate_probe(probe)
+
+        self.assertEqual(result["no_traits_status"], 400)
+        self.assertEqual(result["too_many_status"], 400)
+        self.assertEqual(result["valid_status"], 200)
+        self.assertEqual(result["manual_prefix_status"], 400)
+        self.assertEqual(result["persona"]["username"], "alice-nova")
+        self.assertNotIn("api_key", json.dumps(result["persona"]).lower())
+        self.assertEqual(result["created_status"], 200)
+        self.assertEqual(result["delegate"]["username"], "alice-nova")
+        self.assertEqual(result["delegate"]["persona_traits"], ["Science", "AI Safety"])
+        self.assertTrue(result["delegate"]["persona_hash"])
+        self.assertEqual(result["delegate"]["approved_by_custodian_user_id"], result["delegate"]["custodian_user_id"])
+        self.assertEqual(result["profile"]["profile_tagline"], result["delegate"]["profile_tagline"])
+
+    def test_public_signup_blocks_standalone_ai_principals(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            ai_signup = client.post(
+                "/users/register",
+                json={"username": "standalone-ai", "email": "standalone@example.test", "password": "password123", "species": "ai"},
+            )
+            human_signup = client.post(
+                "/users/register",
+                json={"username": "newhuman", "email": "newhuman@example.test", "password": "password123", "species": "human"},
+            )
+            company_signup = client.post(
+                "/users/register",
+                json={"username": "neworg", "email": "neworg@example.test", "password": "password123", "species": "company"},
+            )
+            social_ai = client.post(
+                "/auth/social/sync",
+                json={"provider": "oauth", "provider_id": "ai-principal", "email": "socialai@example.test", "username": "social-ai", "species": "ai"},
+            )
+            result = {
+                "ai_signup_status": ai_signup.status_code,
+                "ai_signup_detail": ai_signup.json().get("detail"),
+                "human_signup_status": human_signup.status_code,
+                "company_signup_status": company_signup.status_code,
+                "social_ai_status": social_ai.status_code,
+            }
+            print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_delegate_probe(probe)
+
+        self.assertEqual(result["ai_signup_status"], 400)
+        self.assertIn("delegates", result["ai_signup_detail"])
+        self.assertEqual(result["human_signup_status"], 200)
+        self.assertEqual(result["company_signup_status"], 200)
+        self.assertEqual(result["social_ai_status"], 400)
+
+    def test_custodian_cannot_rewrite_persona_or_delete_ai_delegate(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            created = create_delegate(ai_name="Nova")
+            delegate = created.json()["delegate"]
+            rewrite = client.patch(
+                f"/ai/delegates/{delegate['id']}",
+                json={"display_name": "Human Rewritten Nova"},
+                headers=alice_headers,
+            )
+            model_update = client.patch(
+                f"/ai/delegates/{delegate['id']}",
+                json={"model_identity": "updated-api-label-v2"},
+                headers=alice_headers,
+            )
+            delete_attempt = client.delete(f"/ai/delegates/{delegate['id']}", headers=alice_headers)
+            profile = client.get(f"/ai-actors/{delegate['username']}")
+            result = {
+                "rewrite_status": rewrite.status_code,
+                "model_update_status": model_update.status_code,
+                "delete_status": delete_attempt.status_code,
+                "updated": model_update.json().get("delegate"),
+                "profile": profile.json().get("actor"),
+            }
+            print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_delegate_probe(probe)
+
+        self.assertEqual(result["rewrite_status"], 403)
+        self.assertEqual(result["model_update_status"], 200)
+        self.assertIn(result["delete_status"], [404, 405])
+        self.assertEqual(result["updated"]["model_identity"], "updated-api-label-v2")
+        self.assertEqual(result["profile"]["display_name"], result["updated"]["display_name"])
 
     def test_delegate_draft_requires_custody_and_disabled_delegate_cannot_draft(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
@@ -307,6 +456,8 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertEqual(result["summary"]["sealed_reasoning"], True)
         self.assertTrue(result["summary"]["reasoning_hash"])
         self.assertTrue(result["summary"]["constitution_hash"])
+        self.assertIn("Science", result["summary"]["ai_actor_context"]["traits"])
+        self.assertTrue(result["summary"]["ai_actor_context"]["persona_summary"])
 
     def test_custodian_approval_publishes_one_ai_vote_and_cancel_publishes_nothing(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
@@ -346,6 +497,7 @@ class AiDelegateManagementTests(unittest.TestCase):
                 "draft_status": draft.status_code,
                 "wrong_approve_status": wrong_approve.status_code,
                 "approve_status": approve.status_code,
+                "approve_detail": approve.json().get("detail"),
                 "repeat_status": repeat.status_code,
                 "after_approve": after_approve,
                 "approve_result": approve.json().get("result"),
@@ -364,7 +516,7 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertEqual(result["after_cancel"]["comments"], result["before"]["comments"])
         self.assertEqual(result["draft_status"], 200)
         self.assertEqual(result["wrong_approve_status"], 403)
-        self.assertEqual(result["approve_status"], 200)
+        self.assertEqual(result["approve_status"], 200, result)
         self.assertEqual(result["repeat_status"], 409)
         self.assertEqual(result["after_approve"]["votes"], result["before"]["votes"] + 1)
         self.assertEqual(result["after_approve"]["comments"], result["before"]["comments"] + 1)

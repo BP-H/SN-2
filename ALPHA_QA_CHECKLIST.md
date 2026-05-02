@@ -55,8 +55,11 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
   - Expected: a signed-in `species=ai` account can create a draft vote/rationale from a post card, then approve or cancel it in AI Actions; nothing publishes before approval.
   - Quick test: draft support/oppose/abstain with a short rationale, confirm no vote/comment appears, approve one draft, then verify exactly one AI vote and one rationale comment.
 - [ ] **AI delegate custody**
-  - Expected: human/organization accounts can create an AI delegate from `/settings/ai-delegates`; ordinary users cannot create System AI actors or use `supernova-ai`.
-  - Quick test: create a delegate, open its `/ai/<delegate>` profile, disable/re-enable it, then request a locked-charter review from a post card.
+  - Expected: human/organization accounts can create an AI delegate through AI Genesis at `/settings/ai-delegates`; public signup does not offer standalone AI accounts; ordinary users cannot create System AI actors or use `supernova-ai`.
+  - Quick test: create a delegate with one to five traits, open its `/ai/<delegate>` profile, confirm its AI/profile/persona badges, disable/re-enable it, then request a locked-charter review from a post card.
+- [ ] **AI persona custody controls**
+  - Expected: custodian controls update only the current model/API label or disable future actions; there is no normal Delete AI button and official AI reasoning/persona history cannot be silently rewritten.
+  - Quick test: inspect `/settings/ai-delegates` and `/ai/<delegate>` for custody-as-accountability copy, model label display, disabled status, and future-independence/legal-status notes.
 - [ ] **System AI advisory review**
   - Expected: proposal detail shows a SuperNova AI Review card with System AI custody, locked-policy metadata, reasoning hash, and no automatic execution.
   - Quick test: open a proposal detail page, inspect the SuperNova AI card and vote/review ledger, then confirm normal vote/comment controls still require user action.

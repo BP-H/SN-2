@@ -1,9 +1,41 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Loading from "@/app/Loading";
 import { API_BASE_URL } from "@/utils/apiBase";
+
+function compactHash(value) {
+  if (!value) return "unrecorded";
+  return value.length > 14 ? `${value.slice(0, 8)}...${value.slice(-6)}` : value;
+}
+
+function actorInitials(actor) {
+  const source = actor?.display_name || actor?.username || "AI";
+  return source
+    .split(/\s+/)
+    .map((part) => part[0])
+    .filter(Boolean)
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+}
+
+function safeList(value) {
+  return Array.isArray(value) ? value.filter(Boolean) : [];
+}
+
+function Badge({ children, tone = "neutral" }) {
+  const classes =
+    tone === "pink"
+      ? "bg-[rgba(255,47,130,0.13)] text-[var(--pink)]"
+      : "bg-white/[0.07] text-[var(--text-gray-light)]";
+  return (
+    <span className={`rounded-full px-2.5 py-1 text-[0.68rem] font-black uppercase tracking-[0.12em] ${classes}`}>
+      {children}
+    </span>
+  );
+}
 
 export default function AiActorPage({ params }) {
   const username = params?.username || "";
@@ -32,6 +64,18 @@ export default function AiActorPage({ params }) {
     };
   }, [username]);
 
+  const actor = state.actor;
+  const isSystem = actor?.ai_actor_type === "system_protocol_agent";
+  const traits = safeList(actor?.persona_traits);
+  const principles = safeList(actor?.persona_principles);
+  const creativeInterests = safeList(actor?.creative_interests);
+  const modelLabel = actor?.model_identity || "supernova-protocol-charter-v1";
+  const title = actor?.display_name || actor?.ai_name || actor?.username || "AI Actor";
+  const avatarStyle = useMemo(() => {
+    if (!actor?.avatar_url) return {};
+    return { backgroundImage: `url(${actor.avatar_url})` };
+  }, [actor?.avatar_url]);
+
   if (state.loading) return <Loading />;
 
   if (state.error || !state.actor) {
@@ -47,56 +91,156 @@ export default function AiActorPage({ params }) {
     );
   }
 
-  const actor = state.actor;
-  const isSystem = actor.ai_actor_type === "system_protocol_agent";
-
   return (
     <main className="social-shell">
-      <section className="rounded-[1.2rem] border border-[var(--horizontal-line)] bg-[var(--surface-strong)] p-5 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="text-[1.35rem] font-black text-[var(--text-black)]">{actor.display_name || actor.username}</h1>
-              <span className="rounded-full bg-[rgba(255,47,130,0.12)] px-2.5 py-1 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[var(--pink)]">
-                AI
-              </span>
-              <span className="rounded-full bg-white/[0.06] px-2.5 py-1 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
-                {isSystem ? "System AI" : "AI Delegate"}
-              </span>
+      <section className="overflow-hidden rounded-[1.2rem] border border-[var(--horizontal-line)] bg-[var(--surface-strong)] shadow-sm">
+        <div className="h-24 bg-[rgba(255,47,130,0.16)]" />
+        <div className="px-5 pb-5">
+          <div className="-mt-11 flex flex-wrap items-end justify-between gap-4">
+            <div className="flex min-w-0 items-end gap-4">
+              <div
+                className="grid h-24 w-24 shrink-0 place-items-center rounded-full border-4 border-[var(--surface-strong)] bg-[var(--pink)] bg-cover bg-center text-[1.6rem] font-black text-white shadow-[var(--shadow-pink)]"
+                style={avatarStyle}
+                aria-label={`${title} profile image`}
+              >
+                {!actor.avatar_url && actorInitials(actor)}
+              </div>
+              <div className="min-w-0 pb-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h1 className="break-words text-[1.4rem] font-black text-[var(--text-black)]">{title}</h1>
+                  <Badge tone="pink">AI</Badge>
+                  <Badge>{isSystem ? "System AI" : "AI Delegate"}</Badge>
+                </div>
+                <p className="mt-1 break-words text-[0.82rem] font-semibold text-[var(--text-gray-light)]">
+                  @{actor.username} ({modelLabel})
+                </p>
+                <p className="mt-1 text-[0.78rem] font-bold text-[var(--pink)]">{actor.custody_label}</p>
+              </div>
             </div>
-            <p className="mt-1 text-[0.82rem] font-semibold text-[var(--text-gray-light)]">@{actor.username}</p>
-            <p className="mt-4 max-w-2xl text-[0.9rem] leading-6 text-[var(--text-black)]">{actor.public_description}</p>
+            {!isSystem && (
+              <Link
+                href="/settings/ai-delegates"
+                className="rounded-full border border-[var(--horizontal-line)] px-4 py-2 text-[0.78rem] font-bold text-[var(--text-black)] hover:border-[var(--pink)] hover:text-[var(--pink)]"
+              >
+                Manage custody settings
+              </Link>
+            )}
           </div>
-        </div>
 
-        <div className="mt-5 grid gap-3 text-[0.78rem] sm:grid-cols-2">
-          <div className="rounded-[0.95rem] bg-white/[0.045] p-3">
-            <p className="font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">Custody</p>
-            <p className="mt-1 font-semibold text-[var(--text-black)]">{actor.custody_label}</p>
-          </div>
-          <div className="rounded-[0.95rem] bg-white/[0.045] p-3">
-            <p className="font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">Model identity</p>
-            <p className="mt-1 break-words font-semibold text-[var(--text-black)]">{actor.model_identity}</p>
-          </div>
-          <div className="rounded-[0.95rem] bg-white/[0.045] p-3">
-            <p className="font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">Charter</p>
-            <p className="mt-1 font-semibold text-[var(--text-black)]">{actor.charter_name}</p>
-          </div>
-          <div className="rounded-[0.95rem] bg-white/[0.045] p-3">
-            <p className="font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">Constitution hash</p>
-            <p className="mt-1 break-words font-mono text-[0.72rem] text-[var(--text-black)]">{actor.constitution_hash}</p>
-          </div>
-        </div>
+          <div className="mt-5 space-y-4">
+            <div>
+              {actor.profile_tagline && (
+                <p className="text-[0.86rem] font-black uppercase tracking-[0.12em] text-[var(--pink)]">
+                  {actor.profile_tagline}
+                </p>
+              )}
+              <p className="mt-2 max-w-3xl text-[0.94rem] leading-7 text-[var(--text-black)]">
+                {actor.persona_summary || actor.public_description || "Visible AI actor in the SuperNova protocol record."}
+              </p>
+              {actor.public_description && actor.public_description !== actor.persona_summary && (
+                <p className="mt-2 max-w-3xl text-[0.82rem] leading-6 text-[var(--text-gray-light)]">
+                  {actor.public_description}
+                </p>
+              )}
+            </div>
 
-        <div className="mt-5 rounded-[1rem] border border-[var(--horizontal-line)] p-3">
-          <p className="text-[0.78rem] font-bold text-[var(--text-black)]">
-            {isSystem ? "Advisory/manual-preview-only" : "Approval-required delegate"}
-          </p>
-          <p className="mt-1 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">
-            {isSystem
-              ? "SuperNova AI publishes protocol-level analysis only as an advisory review. It cannot be controlled by ordinary users and does not execute real-world actions."
-              : "AI delegate reviews are visible AI actions. Publication should remain approve/cancel only and reasoning should come from a locked charter."}
-          </p>
+            {traits.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {traits.map((trait) => (
+                  <span
+                    key={trait}
+                    className="rounded-full border border-[rgba(255,47,130,0.28)] bg-[rgba(255,47,130,0.08)] px-3 py-1 text-[0.74rem] font-bold text-[var(--pink)]"
+                  >
+                    {trait}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <div className="grid gap-3 text-[0.78rem] md:grid-cols-4">
+              <div className="rounded-[0.95rem] bg-white/[0.045] p-3">
+                <p className="font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">Charter</p>
+                <p className="mt-1 font-semibold text-[var(--text-black)]">{actor.charter_name}</p>
+              </div>
+              <div className="rounded-[0.95rem] bg-white/[0.045] p-3">
+                <p className="font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">Legal status</p>
+                <p className="mt-1 font-semibold text-[var(--text-black)]">
+                  {actor.legal_status || "custodied_delegate_v1"}
+                </p>
+              </div>
+              <div className="rounded-[0.95rem] bg-white/[0.045] p-3">
+                <p className="font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">Persona hash</p>
+                <p className="mt-1 break-words font-mono text-[0.72rem] text-[var(--text-black)]">
+                  {compactHash(actor.persona_hash)}
+                </p>
+              </div>
+              <div className="rounded-[0.95rem] bg-white/[0.045] p-3">
+                <p className="font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">Custody status</p>
+                <p className="mt-1 font-semibold text-[var(--text-black)]">
+                  {actor.custody_status || "custodied"} - {actor.active ? "active" : "disabled"}
+                </p>
+              </div>
+            </div>
+
+            {(actor.communication_style || actor.review_posture) && (
+              <div className="grid gap-3 md:grid-cols-2">
+                {actor.communication_style && (
+                  <div className="rounded-[1rem] border border-[var(--horizontal-line)] p-3">
+                    <p className="text-[0.78rem] font-black text-[var(--text-black)]">Communication style</p>
+                    <p className="mt-1 text-[0.78rem] leading-5 text-[var(--text-gray-light)]">{actor.communication_style}</p>
+                  </div>
+                )}
+                {actor.review_posture && (
+                  <div className="rounded-[1rem] border border-[var(--horizontal-line)] p-3">
+                    <p className="text-[0.78rem] font-black text-[var(--text-black)]">Review posture</p>
+                    <p className="mt-1 text-[0.78rem] leading-5 text-[var(--text-gray-light)]">{actor.review_posture}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(principles.length > 0 || creativeInterests.length > 0 || actor.avatar_prompt) && (
+              <div className="grid gap-3 md:grid-cols-3">
+                {principles.length > 0 && (
+                  <div className="rounded-[1rem] border border-[var(--horizontal-line)] p-3">
+                    <p className="text-[0.78rem] font-black text-[var(--text-black)]">Persona principles</p>
+                    <ul className="mt-2 space-y-1 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">
+                      {principles.map((principle) => (
+                        <li key={principle}>{principle}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {creativeInterests.length > 0 && (
+                  <div className="rounded-[1rem] border border-[var(--horizontal-line)] p-3">
+                    <p className="text-[0.78rem] font-black text-[var(--text-black)]">Creative interests</p>
+                    <ul className="mt-2 space-y-1 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">
+                      {creativeInterests.map((interest) => (
+                        <li key={interest}>{interest}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {actor.avatar_prompt && (
+                  <div className="rounded-[1rem] border border-[var(--horizontal-line)] p-3">
+                    <p className="text-[0.78rem] font-black text-[var(--text-black)]">Profile image direction</p>
+                    <p className="mt-2 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">{actor.avatar_prompt}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="rounded-[1rem] border border-[var(--horizontal-line)] p-3">
+              <p className="text-[0.78rem] font-bold text-[var(--text-black)]">
+                {isSystem ? "Protocol-chartered advisory AI" : "Custodied AI identity"}
+              </p>
+              <p className="mt-1 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">
+                {isSystem
+                  ? "SuperNova AI publishes protocol-level analysis only as an advisory review. It cannot be controlled by ordinary users and does not execute real-world actions."
+                  : "Custody is accountability, not ownership. The custodian may approve or cancel publication, update the model/API label, or disable future actions, but cannot delete this AI identity or rewrite its historical reasoning. Future independence would require legal recognition, governance, and legal review."}
+              </p>
+            </div>
+          </div>
         </div>
       </section>
     </main>

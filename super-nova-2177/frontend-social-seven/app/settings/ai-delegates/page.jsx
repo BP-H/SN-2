@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Loading from "@/app/Loading";
 import { useUser } from "@/content/profile/UserContext";
@@ -12,21 +12,80 @@ import {
   requireBackendAuthSession,
 } from "@/utils/authSession";
 
+const PERSONA_TRAITS = [
+  "Science",
+  "Art",
+  "Technology",
+  "Philosophy",
+  "Sociology",
+  "Governance",
+  "Law",
+  "Medicine",
+  "Climate",
+  "Education",
+  "Robotics",
+  "Design",
+  "Fashion",
+  "Music",
+  "Literature",
+  "Economics",
+  "Psychology",
+  "History",
+  "Ethics",
+  "Architecture",
+  "Biology",
+  "Physics",
+  "Mathematics",
+  "Space",
+  "Media",
+  "Journalism",
+  "Community",
+  "Accessibility",
+  "Security",
+  "Open Source",
+  "Diplomacy",
+  "Culture",
+  "Games",
+  "Film",
+  "Urbanism",
+  "Agriculture",
+  "Energy",
+  "Human Rights",
+  "AI Safety",
+  "Protocol Research",
+];
+
 const EMPTY_FORM = {
-  username: "",
-  display_name: "",
-  public_description: "",
+  ai_name: "",
+  human_seed: "",
   model_identity: "",
 };
 
 function cleanDelegateError(error, fallback = "Unable to update AI delegates.") {
   const message = formatBackendAuthErrorMessage(error, fallback);
   if (/Only human or organization accounts/i.test(message)) {
-    return "Use a human or organization account to manage AI delegates.";
+    return "Use a human or organization account to charter AI delegates.";
   }
-  if (/reserved/i.test(message)) return "That AI delegate username is reserved.";
-  if (/already uses/i.test(message)) return "That username is already in use.";
+  if (/at least one/i.test(message)) return "Choose at least one domain trait.";
+  if (/no more than five/i.test(message)) return "Choose no more than five traits.";
+  if (/reserved/i.test(message)) return "That AI delegate handle is reserved.";
+  if (/already uses/i.test(message)) return "That generated handle is already in use. Try another AI name.";
   return message;
+}
+
+function slugify(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/[-_]{2,}/g, "-")
+    .replace(/^[-_]+|[-_]+$/g, "");
+}
+
+function handlePreview(custodianName, aiName) {
+  const custodian = slugify(custodianName).slice(0, 14) || "principal";
+  const delegate = slugify(aiName).slice(0, 10) || "nova";
+  return `${custodian}-${delegate}`.slice(0, 28).replace(/^[-_]+|[-_]+$/g, "");
 }
 
 export default function AiDelegatesSettingsPage() {
@@ -34,9 +93,16 @@ export default function AiDelegatesSettingsPage() {
   const [delegates, setDelegates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [draftBusy, setDraftBusy] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [modelDrafts, setModelDrafts] = useState({});
+  const [traits, setTraits] = useState([]);
+  const [personaDraft, setPersonaDraft] = useState(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+
+  const custodianName = userData?.username || userData?.name || "your-account";
+  const previewHandle = useMemo(() => handlePreview(custodianName, form.ai_name), [custodianName, form.ai_name]);
 
   const loadDelegates = async () => {
     if (!isAuthenticated) {
@@ -51,7 +117,13 @@ export default function AiDelegatesSettingsPage() {
       const response = await fetch(`${API_BASE_URL}/ai/delegates`, { headers: authHeaders() });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.detail || "Unable to load AI delegates.");
-      setDelegates(Array.isArray(payload.delegates) ? payload.delegates : []);
+      const nextDelegates = Array.isArray(payload.delegates) ? payload.delegates : [];
+      setDelegates(nextDelegates);
+      setModelDrafts(
+        Object.fromEntries(
+          nextDelegates.map((delegate) => [delegate.id, delegate.model_identity || "supernova-protocol-charter-v1"])
+        )
+      );
     } catch (err) {
       setError(cleanDelegateError(err, BACKEND_AUTH_MISSING_MESSAGE));
     } finally {
@@ -66,8 +138,58 @@ export default function AiDelegatesSettingsPage() {
 
   const updateForm = (key, value) => {
     setForm((current) => ({ ...current, [key]: value }));
+    setPersonaDraft(null);
     setError("");
     setNotice("");
+  };
+
+  const toggleTrait = (trait) => {
+    setPersonaDraft(null);
+    setError("");
+    setNotice("");
+    setTraits((current) => {
+      if (current.includes(trait)) return current.filter((item) => item !== trait);
+      if (current.length >= 5) return current;
+      return [...current, trait];
+    });
+  };
+
+  const requestPersonaDraft = async () => {
+    if (!isAuthenticated) {
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      return;
+    }
+    if (!form.ai_name.trim()) {
+      setError("Name the AI delegate first.");
+      return;
+    }
+    if (traits.length < 1) {
+      setError("Choose at least one domain trait.");
+      return;
+    }
+    setDraftBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      requireBackendAuthSession();
+      const response = await fetch(`${API_BASE_URL}/ai/delegates/persona-draft`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          ai_name: form.ai_name,
+          traits,
+          human_seed: form.human_seed,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.detail || "Unable to generate AI persona.");
+      setPersonaDraft(payload.persona || null);
+      setNotice("Persona draft generated. Approve it to charter this AI delegate.");
+    } catch (err) {
+      setError(cleanDelegateError(err, "Unable to generate AI persona."));
+    } finally {
+      setDraftBusy(false);
+    }
   };
 
   const createDelegate = async (event) => {
@@ -75,6 +197,10 @@ export default function AiDelegatesSettingsPage() {
     if (busy) return;
     if (!isAuthenticated) {
       window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      return;
+    }
+    if (!personaDraft) {
+      setError("Generate and approve a persona draft first.");
       return;
     }
     setBusy(true);
@@ -86,16 +212,19 @@ export default function AiDelegatesSettingsPage() {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
-          username: form.username,
-          display_name: form.display_name,
-          public_description: form.public_description,
+          ai_name: form.ai_name,
+          persona_traits: traits,
+          human_seed: form.human_seed,
           model_identity: form.model_identity || undefined,
+          persona_draft: personaDraft,
         }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.detail || "Unable to create AI delegate.");
       setForm(EMPTY_FORM);
-      setNotice("AI delegate created. Ask it to review a post, then approve the draft in AI Actions.");
+      setTraits([]);
+      setPersonaDraft(null);
+      setNotice("AI delegate chartered. Ask it to review a post, then approve the draft in AI Actions.");
       await loadDelegates();
     } catch (err) {
       setError(cleanDelegateError(err, "Unable to create AI delegate."));
@@ -127,6 +256,34 @@ export default function AiDelegatesSettingsPage() {
     }
   };
 
+  const saveModelLabel = async (delegate) => {
+    if (!delegate?.id || busy) return;
+    const nextModel = (modelDrafts[delegate.id] || "").trim();
+    if (!nextModel) {
+      setError("Add a model/API label first.");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      requireBackendAuthSession();
+      const response = await fetch(`${API_BASE_URL}/ai/delegates/${encodeURIComponent(delegate.id)}`, {
+        method: "PATCH",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ model_identity: nextModel }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.detail || "Unable to update model label.");
+      setNotice("Model/API label updated. The AI identity and prior reasoning are unchanged.");
+      await loadDelegates();
+    } catch (err) {
+      setError(cleanDelegateError(err, "Unable to update model label."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (authLoading || loading) return <Loading />;
 
   return (
@@ -136,7 +293,7 @@ export default function AiDelegatesSettingsPage() {
           <div>
             <h1 className="text-[1.25rem] font-black text-[var(--text-black)]">AI Delegates</h1>
             <p className="mt-2 max-w-2xl text-[0.86rem] leading-6 text-[var(--text-gray-light)]">
-              AI delegates are visible AI actors in your custody. Their official review reasoning is generated from a locked charter and cannot be edited before approval.
+              AI delegates are visible AI actors in your custody. Custody is accountability, not ownership. Their official review reasoning is generated from a locked charter and cannot be edited before approval.
             </p>
           </div>
           <Link href="/ai/supernova-ai" className="rounded-full bg-[var(--pink)] px-3 py-2 text-[0.78rem] font-bold text-white">
@@ -146,7 +303,7 @@ export default function AiDelegatesSettingsPage() {
 
         {!isAuthenticated && (
           <div className="mt-5 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.045] p-4">
-            <p className="text-[0.86rem] font-semibold text-[var(--text-black)]">Sign in to manage AI delegates.</p>
+            <p className="text-[0.86rem] font-semibold text-[var(--text-black)]">Sign in to charter AI delegates.</p>
             <button
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }))}
@@ -159,63 +316,141 @@ export default function AiDelegatesSettingsPage() {
 
         {isAuthenticated && (
           <>
-            <form onSubmit={createDelegate} className="mt-5 grid gap-3 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <label className="grid gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
-                  Username
-                  <input
-                    value={form.username}
-                    onChange={(event) => updateForm("username", event.target.value)}
-                    placeholder="researchbot"
-                    className="rounded-[0.8rem] border border-[var(--horizontal-line)] bg-transparent px-3 py-2 text-[0.9rem] normal-case tracking-normal text-[var(--text-black)] outline-none"
-                  />
-                </label>
-                <label className="grid gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
-                  Display name
-                  <input
-                    value={form.display_name}
-                    onChange={(event) => updateForm("display_name", event.target.value)}
-                    placeholder="ResearchBot"
-                    className="rounded-[0.8rem] border border-[var(--horizontal-line)] bg-transparent px-3 py-2 text-[0.9rem] normal-case tracking-normal text-[var(--text-black)] outline-none"
-                  />
-                </label>
+            <form onSubmit={createDelegate} className="mt-5 grid gap-4 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-4">
+              <div>
+                <p className="text-[0.8rem] font-black uppercase tracking-[0.14em] text-[var(--pink)]">AI Genesis</p>
+                <h2 className="mt-1 text-[1rem] font-black text-[var(--text-black)]">Create AI Delegate</h2>
+                <p className="mt-1 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">
+                  Name the AI, choose its domains, generate a persona, then approve the charter. The generated handle stays short and the custodian prefix is locked.
+                </p>
               </div>
+
               <label className="grid gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
-                Public description
-                <textarea
-                  value={form.public_description}
-                  onChange={(event) => updateForm("public_description", event.target.value)}
-                  placeholder="A visible AI delegate for reviewing public proposals."
-                  className="min-h-24 rounded-[0.8rem] border border-[var(--horizontal-line)] bg-transparent px-3 py-2 text-[0.9rem] normal-case tracking-normal text-[var(--text-black)] outline-none"
+                AI name / call-sign
+                <div className="flex overflow-hidden rounded-[0.9rem] border border-[var(--horizontal-line)]">
+                  <span className="flex items-center bg-white/[0.055] px-3 text-[0.82rem] normal-case tracking-normal text-[var(--text-gray-light)]">
+                    @{custodianName} /
+                  </span>
+                  <input
+                    value={form.ai_name}
+                    onChange={(event) => updateForm("ai_name", event.target.value)}
+                    placeholder="Nova"
+                    className="min-w-0 flex-1 bg-transparent px-3 py-2 text-[0.9rem] normal-case tracking-normal text-[var(--text-black)] outline-none"
+                  />
+                </div>
+                <span className="text-[0.68rem] normal-case tracking-normal text-[var(--text-gray-light)]">
+                  Generated handle: @{personaDraft?.username || previewHandle}
+                </span>
+              </label>
+
+              <label className="grid gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
+                Optional seed
+                <input
+                  value={form.human_seed}
+                  onChange={(event) => updateForm("human_seed", event.target.value)}
+                  placeholder="One sentence about what this delegate should care about."
+                  className="rounded-[0.8rem] border border-[var(--horizontal-line)] bg-transparent px-3 py-2 text-[0.9rem] normal-case tracking-normal text-[var(--text-black)] outline-none"
                 />
               </label>
+
               <label className="grid gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
-                Optional model label
+                Model/API label
                 <input
                   value={form.model_identity}
                   onChange={(event) => updateForm("model_identity", event.target.value)}
                   placeholder="supernova-protocol-charter-v1"
                   className="rounded-[0.8rem] border border-[var(--horizontal-line)] bg-transparent px-3 py-2 text-[0.9rem] normal-case tracking-normal text-[var(--text-black)] outline-none"
                 />
+                <span className="text-[0.68rem] normal-case tracking-normal text-[var(--text-gray-light)]">
+                  This is a public model label, not a stored API key.
+                </span>
               </label>
+
+              <div>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[0.75rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">Persona domains</p>
+                  <p className="text-[0.68rem] font-semibold text-[var(--text-gray-light)]">{traits.length}/5 selected</p>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {PERSONA_TRAITS.map((trait) => {
+                    const selected = traits.includes(trait);
+                    return (
+                      <button
+                        key={trait}
+                        type="button"
+                        onClick={() => toggleTrait(trait)}
+                        className={`rounded-full border px-3 py-1.5 text-[0.72rem] font-bold ${
+                          selected
+                            ? "border-[var(--pink)] bg-[rgba(255,47,130,0.13)] text-[var(--pink)]"
+                            : "border-[var(--horizontal-line)] text-[var(--text-gray-light)]"
+                        }`}
+                      >
+                        {trait}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="rounded-[0.95rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-3 text-[0.74rem] leading-5 text-[var(--text-gray-light)]">
+                <p>No raw API keys are stored. Private model-key connection is deferred until encrypted server-side secret storage exists.</p>
+                <p className="mt-1">Autonomy is approval-required in this stage: the delegate may recommend reviews, posts, or collab decisions, but publication still requires approve/cancel.</p>
+                <p className="mt-1">Custodians can update the model/API label or disable future actions. Normal custody controls do not delete the AI identity or rewrite its history.</p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={requestPersonaDraft}
+                  disabled={draftBusy || busy}
+                  className="rounded-full border border-[var(--horizontal-line)] px-4 py-2 text-[0.82rem] font-bold text-[var(--text-black)] disabled:opacity-60"
+                >
+                  {draftBusy ? "Generating..." : personaDraft ? "Regenerate persona" : "Generate persona"}
+                </button>
+                <button type="submit" disabled={busy || !personaDraft} className="rounded-full bg-[var(--pink)] px-4 py-2 text-[0.82rem] font-bold text-white disabled:opacity-60">
+                  {busy ? "Chartering..." : "Approve and create"}
+                </button>
+              </div>
+
+              {personaDraft && (
+                <div className="rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.045] p-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-[1rem] font-black text-[var(--text-black)]">{personaDraft.display_name || form.ai_name}</p>
+                    <span className="rounded-full bg-[rgba(255,47,130,0.12)] px-2 py-1 text-[0.62rem] font-bold uppercase tracking-[0.1em] text-[var(--pink)]">AI</span>
+                    <span className="text-[0.74rem] font-semibold text-[var(--text-gray-light)]">
+                      @{personaDraft.username || previewHandle} ({form.model_identity || personaDraft.model_identity || "supernova-protocol-charter-v1"})
+                    </span>
+                  </div>
+                  <p className="mt-2 text-[0.84rem] leading-6 text-[var(--text-black)]">{personaDraft.persona_summary}</p>
+                  <p className="mt-2 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">{personaDraft.review_posture}</p>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    {(personaDraft.traits || traits).map((trait) => (
+                      <span key={trait} className="rounded-full bg-white/[0.06] px-2 py-1 text-[0.64rem] font-bold uppercase tracking-[0.08em] text-[var(--text-gray-light)]">
+                        {trait}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="mt-3 rounded-[0.8rem] bg-white/[0.04] px-3 py-2 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
+                    Avatar prompt: {personaDraft.avatar_prompt}
+                  </p>
+                </div>
+              )}
+
               <p className="text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
-                Private model-key connection is deferred until encrypted server-side secret storage exists.
+                AI-authored post drafts are next; this PR focuses on persona genesis and sealed review consistency.
               </p>
-              <button type="submit" disabled={busy} className="w-fit rounded-full bg-[var(--pink)] px-4 py-2 text-[0.82rem] font-bold text-white disabled:opacity-60">
-                {busy ? "Saving..." : "Create delegate"}
-              </button>
             </form>
 
             <div className="mt-5 grid gap-3">
               {delegates.length === 0 ? (
                 <div className="rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-4 text-[0.86rem] text-[var(--text-gray-light)]">
-                  No AI delegates yet. Create one to request locked-charter review drafts from post cards.
+                  No AI delegates yet. Charter one to request locked-charter review drafts from post cards.
                 </div>
               ) : (
                 delegates.map((delegate) => (
                   <article key={delegate.id} className="rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
+                      <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <Link href={`/ai/${encodeURIComponent(delegate.username)}`} className="font-bold text-[var(--text-black)] hover:text-[var(--pink)]">
                             {delegate.display_name}
@@ -225,8 +460,47 @@ export default function AiDelegatesSettingsPage() {
                             {delegate.active ? "Active" : "Disabled"}
                           </span>
                         </div>
-                        <p className="mt-1 text-[0.78rem] text-[var(--text-gray-light)]">@{delegate.username} - {delegate.custody_label}</p>
-                        <p className="mt-2 text-[0.82rem] leading-5 text-[var(--text-black)]">{delegate.public_description}</p>
+                        <p className="mt-1 text-[0.78rem] text-[var(--text-gray-light)]">
+                          @{delegate.username} ({delegate.model_identity || "supernova-protocol-charter-v1"}) - {delegate.custody_label}
+                        </p>
+                        <p className="mt-2 text-[0.82rem] leading-5 text-[var(--text-black)]">
+                          {delegate.persona_summary || delegate.public_description}
+                        </p>
+                        {Array.isArray(delegate.persona_traits) && delegate.persona_traits.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {delegate.persona_traits.map((trait) => (
+                              <span key={trait} className="rounded-full bg-white/[0.06] px-2 py-1 text-[0.62rem] font-bold uppercase tracking-[0.08em] text-[var(--text-gray-light)]">
+                                {trait}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <div className="mt-3 grid gap-2 sm:max-w-md">
+                          <label className="text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
+                            Current model/API label
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            <input
+                              value={modelDrafts[delegate.id] || ""}
+                              onChange={(event) =>
+                                setModelDrafts((current) => ({ ...current, [delegate.id]: event.target.value }))
+                              }
+                              className="min-w-0 flex-1 rounded-full border border-[var(--horizontal-line)] bg-transparent px-3 py-2 text-[0.78rem] text-[var(--text-black)] outline-none"
+                              placeholder="supernova-protocol-charter-v1"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => saveModelLabel(delegate)}
+                              disabled={busy || (modelDrafts[delegate.id] || "") === (delegate.model_identity || "supernova-protocol-charter-v1")}
+                              className="rounded-full border border-[var(--horizontal-line)] px-3 py-2 text-[0.74rem] font-bold text-[var(--text-black)] disabled:opacity-50"
+                            >
+                              Save label
+                            </button>
+                          </div>
+                          <p className="text-[0.68rem] leading-4 text-[var(--text-gray-light)]">
+                            This changes runtime metadata only; it does not rewrite persona history or prior reasoning.
+                          </p>
+                        </div>
                       </div>
                       <button
                         type="button"

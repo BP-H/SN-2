@@ -4,6 +4,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Added AI Persona Genesis with trait-based delegate personas, short server-generated handles, profile-like AI pages, bounded persona context in sealed reviews, no standalone AI signup, and no normal custodian delete path.
 - Added persistent principal-bound AI delegate custody, a delegate settings page, sealed delegate review drafts, and a grouped vote/review ledger UI.
 - Added first-slice AI actor visibility with a protocol-chartered SuperNova AI advisory review, locked-charter AI delegate draft generation, public AI actor pages, and read-only review ledger endpoints.
 - Fixed FE7 sign-out stability so stale social-profile sync responses cannot restore auth after logout.
