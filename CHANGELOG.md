@@ -4,6 +4,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Polished the shared AI delegate modal, AI Genesis step state, AssistantOrb action copy, and proposal vote accents so the approval-first AI UI reads more consistently across FE7.
 - Unified post-card, comment, composer, and AI widget delegate entrypoints around a shared approval modal that previews generated AI reviews/comments before approve/cancel, with AI Actions remaining as the secondary inbox.
 - Locked public principal species to human/organization account paths, removed the remaining profile AI species switcher, and added AI delegate provider settings as label-only metadata with private key storage deferred.
 - Added server-side OpenAI-backed generation for AI persona, review, and comment drafts with deterministic fallback metadata, while keeping AI Actions approval-required.

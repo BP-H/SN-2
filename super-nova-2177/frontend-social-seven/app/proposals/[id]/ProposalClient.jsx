@@ -58,7 +58,7 @@ function LedgerGroup({ title, rows = [] }) {
                       <span className="font-bold text-[var(--text-black)]">{row.display_name || row.username || "Unknown"}</span>
                     )}
                     <div className="mt-1 flex flex-wrap gap-1.5">
-                      <span className="rounded-full bg-[rgba(255,47,130,0.1)] px-2 py-0.5 text-[0.62rem] font-bold uppercase tracking-[0.1em] text-[var(--pink)]">
+                      <span className="rounded-full bg-[var(--pink-soft)] px-2 py-0.5 text-[0.62rem] font-bold uppercase tracking-[0.1em] text-[var(--pink)]">
                         {row.species || "human"}
                       </span>
                       {row.actor_type_badge && (
@@ -173,7 +173,7 @@ function SystemAiReviewCard({ proposalId }) {
             >
               SuperNova AI Review
             </Link>
-            <span className="rounded-full bg-[rgba(255,47,130,0.12)] px-2 py-1 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[var(--pink)]">
+            <span className="rounded-full bg-[var(--pink-soft)] px-2 py-1 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[var(--pink)]">
               System AI
             </span>
           </div>
@@ -187,7 +187,7 @@ function SystemAiReviewCard({ proposalId }) {
       </div>
 
       {reviewState.error ? (
-        <p className="mt-3 rounded-[0.85rem] bg-[rgba(255,47,130,0.08)] px-3 py-2 text-[0.76rem] font-semibold text-[var(--pink)]">
+        <p className="mt-3 rounded-[0.85rem] bg-[var(--pink-soft)] px-3 py-2 text-[0.76rem] font-semibold text-[var(--pink)]">
           {reviewState.error}
         </p>
       ) : reviewState.payload ? (
@@ -233,7 +233,7 @@ function SystemAiReviewCard({ proposalId }) {
         <div className="mt-4 grid gap-3">
           {ledgerState.loading && <p className="text-[0.76rem] text-[var(--text-gray-light)]">Loading ledger...</p>}
           {ledgerState.error && (
-            <p className="rounded-[0.85rem] bg-[rgba(255,47,130,0.08)] px-3 py-2 text-[0.76rem] font-semibold text-[var(--pink)]">
+            <p className="rounded-[0.85rem] bg-[var(--pink-soft)] px-3 py-2 text-[0.76rem] font-semibold text-[var(--pink)]">
               {ledgerState.error}
             </p>
           )}

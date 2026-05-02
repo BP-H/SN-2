@@ -163,6 +163,17 @@ function aiReviewDetailRows(action = {}) {
   ].filter(Boolean);
 }
 
+function connectorActionActorLabel(action = {}) {
+  const payload = action.draft_payload || {};
+  return (
+    payload.ai_actor_display_name ||
+    payload.display_name ||
+    payload.actor ||
+    payload.ai_actor_username ||
+    "AI delegate"
+  );
+}
+
 function connectorActionCreatedAt(action = {}) {
   if (!action.created_at) return "";
   try {
@@ -620,11 +631,11 @@ export default function AssistantOrb() {
       setConnectorActionsNotice(
         reviewAction === "approve"
           ? action.action_type === "draft_ai_review"
-            ? "AI review published."
+            ? `Published as ${connectorActionActorLabel(action)}.`
             : action.action_type === "draft_ai_comment"
-            ? "AI-authored comment published."
+            ? `Published as ${connectorActionActorLabel(action)}.`
             : "Vote action approved."
-          : "Draft canceled."
+          : "Canceled - nothing published."
       );
     } catch (error) {
       setConnectorActionsError(formatBackendAuthErrorMessage(error, "Unable to update AI Action."));
@@ -1028,7 +1039,7 @@ export default function AssistantOrb() {
                 }}
                 className="ai-cursor-secondary-button rounded-full px-3 py-2 text-[0.74rem] font-semibold"
               >
-                Review AI Actions
+                Open AI Actions
               </button>
               <div className="grid gap-2 sm:grid-cols-2">
                 <button
@@ -1196,7 +1207,7 @@ export default function AssistantOrb() {
                         )}
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                           <span className="text-[0.68rem] text-[var(--text-gray-light)]">
-                            {[connectorActionCreatedAt(action), confidenceLabel].filter(Boolean).join(" · ")}
+                            {[connectorActionCreatedAt(action), confidenceLabel].filter(Boolean).join(" - ")}
                           </span>
                           <div className="flex items-center gap-2">
                             {isApprovableDraft ? (

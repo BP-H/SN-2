@@ -1411,17 +1411,23 @@ function ProposalCard({
         mode={aiActionModalMode}
         target={{ id, title, text: localText, media }}
         onClose={() => setAiActionModalMode("")}
-        onApproved={(payload) => {
+        onApproved={(payload, draftAction) => {
           const publishedComment = payload?.summary?.comment;
           if (publishedComment && typeof publishedComment === "object" && aiActionModalMode === "comment") {
             setLocalComments((items) => [...items, publishedComment]);
             setShowComments(true);
           }
-          setNotify?.([aiActionModalMode === "review" ? "AI review published." : "AI-authored comment published."]);
+          const draftPayload = draftAction?.draft_payload || {};
+          const actorName =
+            draftPayload.ai_actor_display_name ||
+            draftPayload.display_name ||
+            draftPayload.ai_actor_username ||
+            "AI delegate";
+          setNotify?.([`Published as ${actorName}.`]);
           queryClient.invalidateQueries({ queryKey: ["proposals"] });
         }}
         onCanceled={() => {
-          setNotify?.(["AI draft canceled. Nothing was published."]);
+          setNotify?.(["Canceled - nothing published."]);
         }}
       />
     </div>

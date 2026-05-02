@@ -528,6 +528,8 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("Search traits", page)
         self.assertIn("Generate persona", page)
         self.assertIn("Approve and create", page)
+        self.assertIn("currentGenesisStep", page)
+        self.assertIn('aria-current={currentGenesisStep === step ? "step" : undefined}', page)
         self.assertNotIn("USERNAME", active_settings_text)
         self.assertNotIn("DISPLAY NAME", active_settings_text)
         self.assertNotIn("PUBLIC DESCRIPTION", active_settings_text)
@@ -553,13 +555,21 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("payload.generation_source", assistant)
         self.assertIn("Generation", assistant)
         self.assertIn("Approval publishes exactly one AI-authored comment.", assistant)
+        self.assertIn("Open AI Actions", assistant)
+        self.assertIn("Published as ${connectorActionActorLabel(action)}", assistant)
+        self.assertIn("Canceled - nothing published.", assistant)
         self.assertIn("AiDelegateActionModal", proposal_card)
         self.assertIn('mode={aiActionModalMode}', proposal_card)
+        self.assertIn("Published as ${actorName}", proposal_card)
         self.assertIn('mode="composer_assist"', composer)
         self.assertIn("Generate AI review", ai_modal)
         self.assertIn("Generate AI comment", ai_modal)
         self.assertIn("Review ready", ai_modal)
         self.assertIn("Comment ready", ai_modal)
+        self.assertIn("This AI delegate is disabled for future actions.", ai_modal)
+        self.assertIn("Sign in as the delegate custodian.", ai_modal)
+        self.assertIn("Published as ${actorName}", ai_modal)
+        self.assertIn("Canceled - nothing published.", ai_modal)
         self.assertIn("connector/actions/draft-ai-delegate-review", ai_modal)
         self.assertIn("connector/actions/draft-ai-delegate-comment", ai_modal)
         self.assertIn("approve-ai-review", ai_modal)
@@ -567,8 +577,31 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("Open in AI Actions", ai_modal)
         self.assertIn("<IoCheckmark", ai_modal)
         self.assertIn("<IoClose", ai_modal)
+        self.assertNotIn("Review AI Actions", assistant)
         self.assertNotIn("Request review draft", proposal_card)
         self.assertNotIn("save draft action", proposal_card.lower())
+
+    def test_ai_ui_uses_pink_tokens_in_touched_surfaces(self):
+        frontend_root = PROJECT_ROOT / "frontend-social-seven"
+        proposal_detail = (frontend_root / "app" / "proposals" / "[id]" / "ProposalClient.jsx").read_text(
+            encoding="utf-8"
+        )
+        likes = (frontend_root / "content" / "proposal" / "content" / "LikesDeslikes.jsx").read_text(
+            encoding="utf-8"
+        )
+        likes_info = (frontend_root / "content" / "proposal" / "content" / "LikesInfo.jsx").read_text(
+            encoding="utf-8"
+        )
+        globals_css = (frontend_root / "app" / "globals.css").read_text(encoding="utf-8")
+
+        for text in [proposal_detail, likes, likes_info]:
+            self.assertNotIn("rgba(255,47,130", text)
+            self.assertNotIn("rgba(255,79,143", text)
+            self.assertNotIn("#ff4f8f", text)
+        self.assertIn("bg-[var(--pink-soft)]", proposal_detail)
+        self.assertIn("var(--pink)", likes)
+        self.assertIn("var(--pink)", likes_info)
+        self.assertIn("color-mix(in srgb, var(--pink)", globals_css)
 
     def test_species_and_provider_ui_guardrails_are_static(self):
         frontend_root = PROJECT_ROOT / "frontend-social-seven"

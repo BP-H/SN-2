@@ -10,21 +10,11 @@ import { speciesAccentGradient } from "@/utils/species";
 import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 
 const SLIDER_BLUE = "#5e8dfa";
-const SLIDER_PINK = "#ff4f8f";
-
-function mixHex(start, end, ratio) {
-  const t = Math.min(Math.max(ratio, 0), 1);
-  const parse = (hex) => [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16));
-  const [sr, sg, sb] = parse(start);
-  const [er, eg, eb] = parse(end);
-  const toHex = (value) => Math.round(value).toString(16).padStart(2, "0");
-  return `#${toHex(sr + (er - sr) * t)}${toHex(sg + (eg - sg) * t)}${toHex(sb + (eb - sb) * t)}`;
-}
 
 /* Old weighted-slider blue start: hsl(230,80%,75%). */
 function getSliderColor(ratio) {
-  const t = Math.min(Math.max(ratio / 100, 0), 1);
-  return mixHex(SLIDER_BLUE, SLIDER_PINK, t);
+  const pinkShare = Math.round(Math.min(Math.max(ratio, 0), 100));
+  return `color-mix(in srgb, ${SLIDER_BLUE} ${100 - pinkShare}%, var(--pink) ${pinkShare}%)`;
 }
 
 function SpeciesVoteRow({ icon: Icon, label, likes, dislikes, internalPercent, accent }) {
@@ -40,7 +30,7 @@ function SpeciesVoteRow({ icon: Icon, label, likes, dislikes, internalPercent, a
         <div className="flex items-center justify-between gap-2">
           <span className="text-[0.78rem] font-semibold text-[var(--text-black)]">{label}</span>
           <span className="text-right text-[0.72rem] text-[var(--text-gray-light)]">
-            {hasVotes ? `${ratio}% · ${likes} yes · ${dislikes} no` : "No votes yet"}
+            {hasVotes ? `${ratio}% - ${likes} yes - ${dislikes} no` : "No votes yet"}
           </span>
         </div>
       </div>
@@ -128,7 +118,7 @@ function LikesInfo({ proposalId, likesData, dislikesData, className = "" }) {
               />
             </div>
             <p className="mb-1 text-center text-[0.66rem] text-[var(--text-gray-light)]">
-              {totalVotes} total vote{totalVotes !== 1 ? "s" : ""} · Each species carries 33% weight
+              {totalVotes} total vote{totalVotes !== 1 ? "s" : ""} - Each species carries 33% weight
             </p>
 
             <SpeciesVoteRow

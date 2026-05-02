@@ -155,6 +155,13 @@ export default function AiDelegatesSettingsPage() {
     [normalizedTraitQuery]
   );
   const availableTraits = filteredTraits.filter((trait) => !selectedTraitSet.has(trait));
+  const currentGenesisStep = personaDraft
+    ? "Approve"
+    : traits.length > 0
+    ? "Persona"
+    : form.ai_name.trim()
+    ? "Traits"
+    : "Name";
 
   const loadDelegates = async () => {
     if (!isAuthenticated) {
@@ -385,7 +392,12 @@ export default function AiDelegatesSettingsPage() {
           {GENESIS_STEPS.map((step, index) => (
             <span
               key={step}
-              className="rounded-full border border-[var(--horizontal-line)] bg-white/[0.035] px-3 py-1.5 text-[0.68rem] font-black uppercase tracking-[0.12em] text-[var(--text-gray-light)]"
+              aria-current={currentGenesisStep === step ? "step" : undefined}
+              className={`rounded-full border px-3 py-1.5 text-[0.68rem] font-black uppercase tracking-[0.12em] ${
+                currentGenesisStep === step
+                  ? "border-[var(--pink)] bg-[var(--pink-soft)] text-[var(--pink)]"
+                  : "border-[var(--horizontal-line)] bg-white/[0.035] text-[var(--text-gray-light)]"
+              }`}
             >
               {index + 1}. {step}
             </span>

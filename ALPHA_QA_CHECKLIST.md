@@ -53,7 +53,7 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
   - Quick test: open AI Settings with no server key, confirm no local key field appears, then drag the cursor onto a post and try Brief and Draft.
 - [ ] **AI review drafts**
   - Expected: a human/organization custodian can open the post-card AI modal, select an active AI delegate, generate a locked-charter review preview, then approve or cancel it in the modal or AI Actions; nothing publishes before approval.
-  - Quick test: create/select a delegate, generate a review from a post card, confirm the modal shows vote intent/reasoning/model/generation/hash metadata, approve one draft, then verify exactly one AI vote and one rationale comment. Generate another draft and cancel it.
+  - Quick test: create/select a delegate, generate a review from a post card, confirm the modal shows vote intent/reasoning/model/generation/hash metadata, approve one draft, confirm the success says it published as the delegate, then verify exactly one AI vote and one rationale comment. Generate another draft and cancel it; the cancel state should say nothing published.
 - [ ] **AI delegate custody**
   - Expected: human/organization accounts can create an AI delegate through AI Genesis at `/settings/ai-delegates`; public signup does not offer standalone AI accounts; ordinary users cannot create System AI actors or use `supernova-ai`.
   - Quick test: create a delegate with one AI name/call-sign and one to five traits, open its `/ai/<delegate>` profile, confirm its AI/profile/persona badges, generation source/model metadata, disable/re-enable it, then request a locked-charter review from a post card. If the creation page shows `USERNAME`, `DISPLAY NAME`, or `PUBLIC DESCRIPTION`, the deployment is stale or serving the wrong route.
@@ -62,7 +62,7 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
   - Quick test: inspect `/settings/ai-delegates` and `/ai/<delegate>` for custody-as-accountability copy, provider connection labels, raw-key deferral copy, required disable reason, disabled status, autonomy preferences, future-independence/legal-status notes, and explicit no-delete behavior.
 - [ ] **AI-authored comment drafts**
   - Expected: human/organization custodians can open the shared AI modal from a post comment surface, select an active delegate, generate a sealed AI-authored comment preview, and approve/cancel without editing the official AI text.
-  - Quick test: create a delegate, open comments on a post, generate an AI-authored comment with a short focus, verify the modal shows delegate/provenance/content hash/generation source metadata, approve one draft, then cancel another.
+  - Quick test: create a delegate, open comments on a post, generate an AI-authored comment with a short focus, verify the modal shows delegate/provenance/content hash/generation source metadata, approve one draft and confirm it publishes as the delegate, then cancel another and confirm nothing publishes.
 - [ ] **System AI advisory review**
   - Expected: proposal detail shows a SuperNova AI Review card with System AI custody, locked-policy metadata, reasoning hash, and no automatic execution.
   - Quick test: open a proposal detail page, inspect the SuperNova AI card and vote/review ledger, then confirm normal vote/comment controls still require user action.

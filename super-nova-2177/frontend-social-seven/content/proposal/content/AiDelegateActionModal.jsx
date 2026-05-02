@@ -59,6 +59,17 @@ function selectedDelegatePayload(delegate = {}) {
   return { ai_actor_id: Number(delegate.id) };
 }
 
+function delegatePublishName(summary = {}, fallbackDelegate = {}) {
+  return (
+    summary.ai_actor_display_name ||
+    summary.display_name ||
+    fallbackDelegate.display_name ||
+    summary.ai_actor_username ||
+    fallbackDelegate.username ||
+    "AI delegate"
+  );
+}
+
 export default function AiDelegateActionModal({
   open,
   mode = "review",
@@ -184,10 +195,16 @@ export default function AiDelegateActionModal({
 
   const cleanError = (detail, fallback) => {
     const message = formatBackendAuthErrorMessage(detail, fallback);
-    if (/Only the delegate custodian|custody|ai_actor_id|AI delegate not found/i.test(message)) {
+    if (/bearer token|authorization|authenticated|sign in/i.test(message)) {
+      return "Sign in as the delegate custodian.";
+    }
+    if (/Only the delegate custodian|custody no longer matches/i.test(message)) {
+      return "Sign in as the delegate custodian.";
+    }
+    if (/ai_actor_id|AI delegate not found/i.test(message)) {
       return "Choose one of your active AI delegates.";
     }
-    if (/AI delegate is disabled/i.test(message)) return "Enable this AI delegate before generating a draft.";
+    if (/AI delegate is disabled/i.test(message)) return "This AI delegate is disabled for future actions.";
     if (/proposal.*not found|unknown proposal/i.test(message)) return "That post is no longer available.";
     return message;
   };
@@ -233,6 +250,7 @@ export default function AiDelegateActionModal({
     setNotice("");
     try {
       requireBackendAuthSession();
+      const actorName = delegatePublishName(summary, selectedDelegate);
       const endpoint =
         action === "approve"
           ? modeConfig.approveEndpoint(draftAction.id)
@@ -246,15 +264,15 @@ export default function AiDelegateActionModal({
         throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to update AI draft."));
       }
       if (action === "approve") {
-        setNotice(isReview ? "AI review published." : "AI-authored comment published.");
+        setNotice(`Published as ${actorName}.`);
         onApproved?.(payload, draftAction);
       } else {
-        setNotice("Draft canceled. Nothing was published.");
+        setNotice("Canceled - nothing published.");
         onCanceled?.(payload, draftAction);
       }
       setDraftAction(null);
     } catch (err) {
-      setError(formatBackendAuthErrorMessage(err, "Unable to update AI draft."));
+      setError(cleanError(err, "Unable to update AI draft."));
     } finally {
       setReviewBusy("");
     }

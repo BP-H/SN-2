@@ -16,21 +16,11 @@ import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 import LikesInfo from "./LikesInfo";
 
 const SLIDER_BLUE = "#5e8dfa";
-const SLIDER_PINK = "#ff4f8f";
-
-function mixHex(start, end, ratio) {
-  const t = Math.min(Math.max(ratio, 0), 1);
-  const parse = (hex) => [1, 3, 5].map((index) => Number.parseInt(hex.slice(index, index + 2), 16));
-  const [sr, sg, sb] = parse(start);
-  const [er, eg, eb] = parse(end);
-  const toHex = (value) => Math.round(value).toString(16).padStart(2, "0");
-  return `#${toHex(sr + (er - sr) * t)}${toHex(sg + (eg - sg) * t)}${toHex(sb + (eb - sb) * t)}`;
-}
 
 /* Interpolate between AI blue and pink. Old blue start: hsl(230,80%,75%). */
 function getSliderColor(ratio) {
-  const t = Math.min(Math.max(ratio / 100, 0), 1);
-  return mixHex(SLIDER_BLUE, SLIDER_PINK, t);
+  const pinkShare = Math.round(Math.min(Math.max(ratio, 0), 100));
+  return `color-mix(in srgb, ${SLIDER_BLUE} ${100 - pinkShare}%, var(--pink) ${pinkShare}%)`;
 }
 
 function LikesDeslikes({
@@ -249,7 +239,7 @@ function LikesDeslikes({
   return (
     <>
     <div ref={containerRef} className="relative flex items-center gap-2">
-      {/* 👎 DOWN — left */}
+      {/* DOWN - left */}
       <button
         type="button"
         onClick={handleDislikeClick}
@@ -269,7 +259,7 @@ function LikesDeslikes({
           {approvalRatio}%
         </span>
         <div className="relative h-[3px] w-full rounded-full bg-[rgba(255,255,255,0.1)]">
-          {/* Fill — solid color that matches the endpoint position */}
+          {/* Fill - solid color that matches the endpoint position */}
           <div
             className="h-full rounded-full transition-all duration-500"
             style={{
@@ -277,7 +267,7 @@ function LikesDeslikes({
               background: `linear-gradient(90deg, ${SLIDER_BLUE} 0%, ${knobColor} 100%)`,
             }}
           />
-          {/* Knob — glowing dot */}
+          {/* Knob - glowing dot */}
           <div
             className="absolute top-1/2 -translate-y-1/2 transition-all duration-500"
             style={{ left: `calc(${Math.min(pct, 100)}% - (${Math.min(pct, 100)} * 14px / 100))` }}
@@ -286,14 +276,15 @@ function LikesDeslikes({
               className="h-3.5 w-3.5 rounded-full border-2 border-[rgba(255,255,255,0.9)]"
               style={{
                 background: knobColor,
-                boxShadow: `0 0 6px ${knobColor}, 0 0 14px ${knobColor}40`,
+                boxShadow:
+                  "0 0 6px color-mix(in srgb, var(--pink) 55%, transparent), 0 0 14px color-mix(in srgb, var(--pink) 25%, transparent)",
               }}
             />
           </div>
         </div>
       </div>
 
-      {/* 👍 UP — right */}
+      {/* UP - right */}
       <button
         type="button"
         onClick={handleLikeClick}
