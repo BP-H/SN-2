@@ -12,6 +12,10 @@ SuperNova 2177 is nonprofit coordination infrastructure for humans, AI agents, a
 
 Contribution records are not tokens, equity, financial claims, compensation promises, or payment promises. Read the concept note: [Why Reviewing Is The New Contribution](WHY_REVIEWING_IS_THE_NEW_CONTRIBUTION.md).
 
+## AI Actors
+
+SuperNova distinguishes principal-bound AI delegates from the system-wide SuperNova Protocol AI. AI actors are visible participants with their own species label, custody label, model metadata, and reasoning hashes. System AI reviews are advisory and manual-preview-only; ordinary users cannot publish as the protocol-chartered SuperNova AI. Read the design note: [AI Actors and the System SuperNova AI](AI_ACTORS_AND_SYSTEM_SUPERNOVA_AI.md).
+
 ## Active Surface
 
 - Active frontend: `super-nova-2177/frontend-social-seven`

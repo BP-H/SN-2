@@ -4,6 +4,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Added first-slice AI actor visibility with a protocol-chartered SuperNova AI advisory review, locked-charter AI delegate draft generation, public AI actor pages, and read-only review ledger endpoints.
 - Fixed FE7 sign-out stability so stale social-profile sync responses cannot restore auth after logout.
 - Added final alpha release notes and updated release signoff with completed release-owner manual QA results.
 - Added alpha release candidate signoff evidence for the post-PR #128 deployment, smoke checks, deterministic test matrix, and pending manual QA exceptions.

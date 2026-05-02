@@ -898,6 +898,141 @@ def _public_vote_summary(db: Session, proposal_id: int) -> Dict[str, Any]:
     }
 
 
+SUPERNOVA_SYSTEM_AI_USERNAME = "supernova-ai"
+SUPERNOVA_SYSTEM_AI_DISPLAY_NAME = "SuperNova AI"
+SUPERNOVA_SYSTEM_AI_CUSTODY_LABEL = "Chartered by SuperNova Protocol"
+SUPERNOVA_AI_MODEL_IDENTITY = "supernova-protocol-charter-v1"
+SUPERNOVA_AI_PROMPT_POLICY_VERSION = "protocol-review-v1"
+SUPERNOVA_AI_CHARTER_NAME = "SuperNova Protocol Review Charter"
+SUPERNOVA_AI_CHARTER_TEXT = (
+    "Review proposals against tri-species balance, visible AI participation, "
+    "manual-preview-only safety, no hidden execution, no financial or ownership "
+    "claims, human or organization ratification for real-world action, and "
+    "protocol/fork compatibility."
+)
+SUPERNOVA_AI_CONSTITUTION_HASH = hashlib.sha256(
+    SUPERNOVA_AI_CHARTER_TEXT.encode("utf-8")
+).hexdigest()
+
+
+def _hash_text(value: str) -> str:
+    return hashlib.sha256((value or "").encode("utf-8")).hexdigest()
+
+
+def _proposal_review_text(proposal) -> str:
+    title = getattr(proposal, "title", "") or ""
+    body = (
+        getattr(proposal, "description", None)
+        or getattr(proposal, "body", None)
+        or ""
+    )
+    return f"{title}\n\n{body}".strip()
+
+
+def _protocol_review_risk_flags(proposal) -> List[str]:
+    text_value = _proposal_review_text(proposal).lower()
+    flags: List[str] = []
+    risk_checks = (
+        ("financial_promise_language", ("payout", "compensation", "equity", "financial return", "profit", "income")),
+        ("token_or_speculation_language", ("token", "crypto", "dao")),
+        ("hidden_or_automatic_execution", ("auto-execute", "automatic execution", "webhook", "without approval")),
+        ("missing_manual_ratification", ("execute immediately", "no approval", "no ratification")),
+    )
+    for flag, terms in risk_checks:
+        if any(term in text_value for term in terms):
+            flags.append(flag)
+    return flags
+
+
+def _system_ai_actor_payload() -> Dict[str, Any]:
+    return {
+        "id": SUPERNOVA_SYSTEM_AI_USERNAME,
+        "username": SUPERNOVA_SYSTEM_AI_USERNAME,
+        "display_name": SUPERNOVA_SYSTEM_AI_DISPLAY_NAME,
+        "species": "ai",
+        "ai_actor_type": "system_protocol_agent",
+        "custodian_type": "protocol",
+        "custodian_id": None,
+        "custody_label": SUPERNOVA_SYSTEM_AI_CUSTODY_LABEL,
+        "model_provider": "supernova",
+        "model_identity": SUPERNOVA_AI_MODEL_IDENTITY,
+        "charter_name": SUPERNOVA_AI_CHARTER_NAME,
+        "constitution_hash": SUPERNOVA_AI_CONSTITUTION_HASH,
+        "prompt_policy_version": SUPERNOVA_AI_PROMPT_POLICY_VERSION,
+        "public_description": (
+            "Protocol-level reviewer for tri-species governance safety. "
+            "Advisory and manual-preview-only; it does not execute real-world actions."
+        ),
+        "avatar_url": "",
+        "active": True,
+    }
+
+
+def _ai_delegate_actor_metadata(actor) -> Dict[str, Any]:
+    username = getattr(actor, "username", "") or ""
+    return {
+        "ai_actor_id": getattr(actor, "id", None),
+        "ai_actor_username": username,
+        "ai_actor_type": "principal_delegate",
+        "species": "ai",
+        "custodian_id": None,
+        "custodian_type": None,
+        "custody_label": f"AI delegate account @{username}",
+        "model_identity": SUPERNOVA_AI_MODEL_IDENTITY,
+        "charter_name": "Principal AI Delegate Review Charter",
+        "constitution_hash": SUPERNOVA_AI_CONSTITUTION_HASH,
+        "prompt_policy_version": SUPERNOVA_AI_PROMPT_POLICY_VERSION,
+    }
+
+
+def _generate_locked_ai_review(
+    *,
+    proposal,
+    actor_payload: Dict[str, Any],
+    allow_caution: bool,
+) -> Dict[str, Any]:
+    proposal_id = getattr(proposal, "id", None)
+    title = _connector_proposal_title(proposal)
+    flags = _protocol_review_risk_flags(proposal)
+    if flags:
+        stance = "caution" if allow_caution else "abstain"
+        summary = (
+            "Protocol caution: this proposal should be reviewed for "
+            f"{', '.join(flags).replace('_', ' ')} before any real-world action."
+        )
+    else:
+        stance = "support"
+        summary = (
+            "Protocol support: this proposal appears compatible with visible tri-species "
+            "review, manual approval, and public-interest contribution records."
+        )
+
+    reasoning_text = (
+        f"{actor_payload.get('display_name') or actor_payload.get('ai_actor_username') or 'AI delegate'} "
+        f"review for proposal {proposal_id}: {summary}\n\n"
+        f"Locked charter: {SUPERNOVA_AI_CHARTER_TEXT}\n"
+        "Manual-preview-only: this review does not execute real-world actions."
+    )
+    reasoning_hash = _hash_text(reasoning_text)
+    return {
+        "proposal_id": proposal_id,
+        "proposal_title": title,
+        "stance": stance,
+        "vote_intent": "abstain" if stance == "caution" else stance,
+        "reasoning_summary": summary,
+        "reasoning_text": reasoning_text,
+        "reasoning_hash": reasoning_hash,
+        "risk_flags": flags,
+        "model_identity": actor_payload.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY,
+        "constitution_hash": actor_payload.get("constitution_hash") or SUPERNOVA_AI_CONSTITUTION_HASH,
+        "prompt_policy_version": actor_payload.get("prompt_policy_version") or SUPERNOVA_AI_PROMPT_POLICY_VERSION,
+        "charter_name": actor_payload.get("charter_name") or SUPERNOVA_AI_CHARTER_NAME,
+        "custody_label": actor_payload.get("custody_label") or "",
+        "manual_preview_only": True,
+        "no_automatic_execution": True,
+    }
+
+
 def _normalize_system_vote_choice(choice: str) -> str:
     value = (choice or "").strip().lower()
     if value in {"yes", "up", "like", "support"}:
@@ -1119,6 +1254,12 @@ class ConnectorDraftAiReviewIn(BaseModel):
     rationale: Optional[str] = None
     comment: Optional[str] = None
     body: Optional[str] = None
+    confidence: Optional[float] = None
+
+
+class ConnectorDraftAiDelegateReviewIn(BaseModel):
+    username: str
+    proposal_id: int
     confidence: Optional[float] = None
 
 
@@ -2910,12 +3051,15 @@ def connector_supernova_discovery():
         "name": "SuperNova",
         "mode": "public_read_only",
         "description": "Prototype SuperNova-owned public read facade for future connector surfaces.",
-        "resources": ["profiles", "proposals", "comments", "vote_summaries", "public_protocol_docs"],
+        "resources": ["profiles", "proposals", "comments", "vote_summaries", "ai_actor_profiles", "system_ai_reviews", "public_protocol_docs"],
         "endpoints": {
             "proposals": "/connector/proposals?search=&limit=&offset=",
             "proposal": "/connector/proposals/{id}",
             "proposal_comments": "/connector/proposals/{id}/comments?limit=&offset=",
             "proposal_votes": "/connector/proposals/{id}/votes",
+            "system_ai_review": "/proposals/{id}/system-ai-review",
+            "ai_review_ledger": "/proposals/{id}/ai-review-ledger",
+            "ai_actor": "/ai-actors/{username}",
             "profile": "/connector/profiles/{username}",
             "spec": "/connector/supernova/spec",
         },
@@ -3095,6 +3239,135 @@ def connector_get_proposal_vote_summary(proposal_id: int, db: Session = Depends(
         "resource": "proposal_vote_summary",
         "proposal_id": proposal_id,
         "vote_summary": _connector_vote_summary(db, proposal_id),
+    }
+
+
+@app.get("/ai-actors/{username}", summary="Read a public AI actor profile")
+def get_ai_actor_profile(username: str, db: Session = Depends(get_db)):
+    clean_username = (username or "").strip()
+    if clean_username.lower() == SUPERNOVA_SYSTEM_AI_USERNAME:
+        return {
+            "mode": "public_read_only",
+            "actor": _system_ai_actor_payload(),
+            "safety": {
+                "advisory": True,
+                "manual_preview_only": True,
+                "ordinary_users_cannot_publish_as_system_ai": True,
+                "no_automatic_execution": True,
+            },
+        }
+
+    actor = _find_harmonizer_by_username(db, clean_username)
+    if not actor or (getattr(actor, "species", "") or "").strip().lower() != "ai":
+        raise HTTPException(status_code=404, detail="AI actor not found")
+    metadata = _ai_delegate_actor_metadata(actor)
+    return {
+        "mode": "public_read_only",
+        "actor": {
+            "id": getattr(actor, "id", None),
+            "username": getattr(actor, "username", ""),
+            "display_name": getattr(actor, "username", ""),
+            "species": "ai",
+            "ai_actor_type": metadata["ai_actor_type"],
+            "custodian_type": metadata["custodian_type"],
+            "custodian_id": metadata["custodian_id"],
+            "custody_label": metadata["custody_label"],
+            "model_provider": "supernova",
+            "model_identity": metadata["model_identity"],
+            "charter_name": metadata["charter_name"],
+            "constitution_hash": metadata["constitution_hash"],
+            "prompt_policy_version": metadata["prompt_policy_version"],
+            "public_description": getattr(actor, "bio", "") or "Principal-bound AI delegate account.",
+            "avatar_url": _social_avatar(getattr(actor, "profile_pic", "")),
+            "active": bool(getattr(actor, "is_active", True)),
+        },
+        "safety": {
+            "approval_required": True,
+            "manual_preview_only": True,
+            "official_reasoning_should_be_generated_from_locked_charters": True,
+            "no_automatic_execution": True,
+        },
+    }
+
+
+@app.get("/proposals/{proposal_id}/system-ai-review", summary="Read the advisory SuperNova Protocol AI review")
+def get_system_ai_review(proposal_id: int, db: Session = Depends(get_db)):
+    proposal = _connector_get_proposal_or_404(db, proposal_id)
+    actor = _system_ai_actor_payload()
+    review = _generate_locked_ai_review(
+        proposal=proposal,
+        actor_payload=actor,
+        allow_caution=True,
+    )
+    return {
+        "mode": "public_read_only",
+        "actor": actor,
+        "review": {
+            **review,
+            "ai_actor_id": actor["id"],
+            "ai_actor_type": actor["ai_actor_type"],
+            "species": "ai",
+            "approval_status": "published_advisory",
+            "advisory": True,
+        },
+        "safety": {
+            "read_only": True,
+            "advisory_only": True,
+            "no_vote_created": True,
+            "no_comment_created": True,
+            "no_automatic_execution": True,
+        },
+    }
+
+
+@app.get("/proposals/{proposal_id}/ai-review-ledger", summary="Read the public tri-species vote/review ledger")
+def get_ai_review_ledger(proposal_id: int, db: Session = Depends(get_db)):
+    proposal = _connector_get_proposal_or_404(db, proposal_id)
+    system_review = get_system_ai_review(proposal_id, db)
+    groups: Dict[str, List[Dict[str, Any]]] = {
+        "humans": [],
+        "organizations": [],
+        "personal_ai_delegates": [],
+        "organization_ai_delegates": [],
+        "system_ai": [system_review["review"]],
+    }
+
+    if ProposalVote is not None and Harmonizer is not None:
+        votes = db.query(ProposalVote).filter(ProposalVote.proposal_id == proposal_id).all()
+        for vote in votes:
+            voter = db.query(Harmonizer).filter(Harmonizer.id == getattr(vote, "harmonizer_id", None)).first()
+            username = getattr(voter, "username", "") if voter else ""
+            species = (getattr(voter, "species", None) or getattr(vote, "voter_type", None) or "human").lower()
+            row = {
+                "username": username,
+                "species": species,
+                "avatar_url": _social_avatar(getattr(voter, "profile_pic", "")) if voter else "",
+                "vote": getattr(vote, "vote", None) or getattr(vote, "choice", None),
+                "timestamp": _format_timestamp(getattr(vote, "created_at", None)),
+            }
+            if species == "company":
+                row["actor_type_badge"] = "Organization"
+                groups["organizations"].append(row)
+            elif species == "ai":
+                row["actor_type_badge"] = "AI delegate"
+                row["custody_label"] = f"AI delegate account @{username}" if username else "AI delegate account"
+                row["reasoning_summary"] = "AI reasoning is required for official AI reviews."
+                groups["personal_ai_delegates"].append(row)
+            else:
+                row["actor_type_badge"] = "Human"
+                groups["humans"].append(row)
+
+    return {
+        "mode": "public_read_only",
+        "proposal_id": getattr(proposal, "id", proposal_id),
+        "proposal_title": _connector_proposal_title(proposal),
+        "groups": groups,
+        "safety": {
+            "read_only": True,
+            "system_ai_advisory_only": True,
+            "no_automatic_execution": True,
+            "mcp_write_tools_enabled": False,
+        },
     }
 
 
@@ -3528,15 +3801,22 @@ def connector_draft_ai_review(
     choice = _normalize_connector_vote_choice(payload.choice)
     rationale = _connector_review_rationale(payload)
     confidence = _connector_confidence(payload.confidence)
+    actor_metadata = _ai_delegate_actor_metadata(actor)
+    reasoning_hash = _hash_text(rationale)
     summary = {
         "action": "draft_ai_review",
         "actor": getattr(actor, "username", ""),
         "actor_species": "ai",
+        **actor_metadata,
         "proposal_id": getattr(proposal, "id", payload.proposal_id),
         "proposal_title": _connector_proposal_title(proposal),
         "rationale": rationale,
+        "reasoning_summary": rationale,
+        "reasoning_hash": reasoning_hash,
         "confidence": confidence,
         **choice,
+        "sealed_reasoning": False,
+        "reasoning_source": "ai_actor_submitted_draft",
         "approval_effect": "Publish one AI vote and one AI rationale comment.",
     }
     try:
@@ -3555,6 +3835,61 @@ def connector_draft_ai_review(
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to draft AI review action: {str(exc)}")
+
+
+@app.post("/connector/actions/draft-ai-delegate-review", summary="Draft a locked-charter AI delegate review without executing it")
+def connector_draft_ai_delegate_review(
+    payload: ConnectorDraftAiDelegateReviewIn,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    actor = _connector_require_ai_actor(authorization, db, payload.username)
+    proposal = _connector_get_proposal_or_404(db, payload.proposal_id)
+    actor_metadata = _ai_delegate_actor_metadata(actor)
+    review = _generate_locked_ai_review(
+        proposal=proposal,
+        actor_payload={
+            **actor_metadata,
+            "display_name": getattr(actor, "username", ""),
+        },
+        allow_caution=False,
+    )
+    choice = _normalize_connector_vote_choice(review["vote_intent"])
+    confidence = _connector_confidence(payload.confidence)
+    summary = {
+        "action": "draft_ai_review",
+        "actor": getattr(actor, "username", ""),
+        "actor_species": "ai",
+        **actor_metadata,
+        "proposal_id": getattr(proposal, "id", payload.proposal_id),
+        "proposal_title": _connector_proposal_title(proposal),
+        "rationale": review["reasoning_text"],
+        "reasoning_summary": review["reasoning_summary"],
+        "reasoning_text": review["reasoning_text"],
+        "reasoning_hash": review["reasoning_hash"],
+        "risk_flags": review["risk_flags"],
+        "confidence": confidence,
+        **choice,
+        "sealed_reasoning": True,
+        "reasoning_source": "locked_server_charter",
+        "approval_effect": "Publish one AI vote and one AI rationale comment.",
+    }
+    try:
+        record = _create_connector_action_draft(
+            db,
+            action_type="draft_ai_review",
+            actor_user_id=getattr(actor, "id", None),
+            target_type="proposal_ai_review",
+            target_id=getattr(proposal, "id", payload.proposal_id),
+            draft_payload=summary,
+        )
+        return _connector_draft_response(record, summary)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to draft AI delegate review action: {str(exc)}")
 
 
 @app.post("/connector/actions/{action_id}/approve-vote", summary="Approve and execute a drafted connector vote action")
@@ -3678,6 +4013,15 @@ def connector_approve_ai_review_action(
             "actor": result["actor"],
             "comment_id": getattr(comment, "id", None),
             "confidence": confidence,
+            "ai_actor_id": payload.get("ai_actor_id"),
+            "ai_actor_type": payload.get("ai_actor_type", "principal_delegate"),
+            "custody_label": payload.get("custody_label"),
+            "model_identity": payload.get("model_identity"),
+            "constitution_hash": payload.get("constitution_hash"),
+            "prompt_policy_version": payload.get("prompt_policy_version"),
+            "reasoning_hash": payload.get("reasoning_hash") or _hash_text(rationale),
+            "reasoning_summary": payload.get("reasoning_summary") or rationale,
+            "sealed_reasoning": bool(payload.get("sealed_reasoning")),
             "created_vote": result["created"],
             "executed_action": "ai_review",
             "summary": "AI review published after explicit approval.",
@@ -3695,6 +4039,9 @@ def connector_approve_ai_review_action(
             "intended_choice": result["intended_choice"],
             "comment_id": getattr(comment, "id", None),
             "confidence": confidence,
+            "ai_actor_type": action.result_payload.get("ai_actor_type"),
+            "reasoning_hash": action.result_payload.get("reasoning_hash"),
+            "sealed_reasoning": action.result_payload.get("sealed_reasoning"),
         }
         return _connector_action_response(action, summary, action.result_payload)
     except HTTPException:

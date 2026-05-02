@@ -156,8 +156,6 @@ function ProposalCard({
   const [collabStatus, setCollabStatus] = useState("");
   const [collabError, setCollabError] = useState("");
   const [aiReviewOpen, setAiReviewOpen] = useState(false);
-  const [aiReviewChoice, setAiReviewChoice] = useState("support");
-  const [aiReviewRationale, setAiReviewRationale] = useState("");
   const [aiReviewBusy, setAiReviewBusy] = useState(false);
   const [aiReviewStatus, setAiReviewStatus] = useState("");
   const [aiReviewError, setAiReviewError] = useState("");
@@ -538,7 +536,6 @@ function ProposalCard({
 
   const handleDraftAiReview = async () => {
     if (aiReviewBusy) return;
-    const rationale = aiReviewRationale.trim();
     if (!id) {
       setAiReviewError("That post is missing a proposal id.");
       return;
@@ -551,36 +548,25 @@ function ProposalCard({
       setAiReviewError("Only AI accounts can create AI review drafts.");
       return;
     }
-    if (!rationale) {
-      setAiReviewError("Add one short rationale before creating the draft.");
-      return;
-    }
-    if (rationale.length > 800) {
-      setAiReviewError("Keep the rationale to 800 characters or fewer.");
-      return;
-    }
 
     setAiReviewBusy(true);
     setAiReviewError("");
     setAiReviewStatus("");
     try {
       requireBackendAuthSession();
-      const response = await fetch(`${API_BASE_URL}/connector/actions/draft-ai-review`, {
+      const response = await fetch(`${API_BASE_URL}/connector/actions/draft-ai-delegate-review`, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify({
           username: userData.name,
           proposal_id: Number(id),
-          choice: aiReviewChoice,
-          rationale,
         }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(aiReviewErrorMessage(payload?.detail));
       }
-      setAiReviewRationale("");
-      setAiReviewStatus("AI review draft saved. Approve it in AI Actions before anything is published.");
+      setAiReviewStatus("Locked-charter AI review draft saved. Approve it in AI Actions before anything is published.");
       setNotify?.(["AI review draft saved for approval."]);
       window.dispatchEvent(
         new CustomEvent("supernova:ai-actions-refresh", {
@@ -1401,9 +1387,9 @@ function ProposalCard({
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[0.78rem] font-semibold text-[var(--text-black)]">Draft AI review</p>
+                <p className="text-[0.78rem] font-semibold text-[var(--text-black)]">Ask AI delegate</p>
                 <p className="mt-0.5 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
-                  Creates a draft only. Approve in AI Actions to publish one AI vote and one rationale comment.
+                  The server generates vote intent and reasoning from a locked charter. Approve in AI Actions to publish one AI vote and one rationale comment.
                 </p>
               </div>
               <button
@@ -1416,48 +1402,21 @@ function ProposalCard({
               </button>
             </div>
 
-            <div className="mt-3 flex flex-wrap gap-2">
-              {[
-                ["support", "Support"],
-                ["oppose", "Oppose"],
-                ["abstain", "Abstain"],
-              ].map(([value, label]) => (
-                <button
-                  type="button"
-                  key={value}
-                  onClick={() => setAiReviewChoice(value)}
-                  className={`ai-review-choice rounded-full px-3 py-1.5 text-[0.72rem] font-semibold ${
-                    aiReviewChoice === value ? "is-selected" : ""
-                  }`}
-                >
-                  {label}
-                </button>
-              ))}
+            <div className="mt-3 rounded-[0.85rem] border border-[var(--horizontal-line)] bg-white/[0.045] px-3 py-2 text-[0.73rem] leading-5 text-[var(--text-gray-light)]">
+              AI reasoning cannot be edited before approval. Canceling the draft prevents publication.
             </div>
-
-            <textarea
-              value={aiReviewRationale}
-              onChange={(event) => {
-                setAiReviewRationale(event.target.value.slice(0, 800));
-                setAiReviewError("");
-                setAiReviewStatus("");
-              }}
-              maxLength={800}
-              placeholder="Short rationale for this AI review..."
-              className="ai-review-rationale mt-3 min-h-24 w-full resize-y rounded-[0.85rem] px-3 py-2 text-[0.84rem] outline-none"
-            />
 
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
               <span className="text-[0.68rem] text-[var(--text-gray-light)]">
-                {aiReviewRationale.trim().length}/800
+                Manual-preview-only
               </span>
               <button
                 type="button"
                 onClick={handleDraftAiReview}
-                disabled={aiReviewBusy || !aiReviewRationale.trim()}
+                disabled={aiReviewBusy}
                 className="ai-review-submit rounded-full px-3.5 py-2 text-[0.74rem] font-semibold disabled:opacity-55"
               >
-                {aiReviewBusy ? "Saving..." : "Create draft"}
+                {aiReviewBusy ? "Saving..." : "Request review draft"}
               </button>
             </div>
 

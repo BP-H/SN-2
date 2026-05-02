@@ -368,6 +368,7 @@ class ConnectorActionDraftRouteTests(unittest.TestCase):
             result["routes"],
             [
                 "/connector/actions",
+                "/connector/actions/draft-ai-delegate-review",
                 "/connector/actions/draft-ai-review",
                 "/connector/actions/draft-collab-request",
                 "/connector/actions/draft-comment",
