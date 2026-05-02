@@ -88,6 +88,29 @@ function handlePreview(custodianName, aiName) {
   return `${custodian}-${delegate}`.slice(0, 28).replace(/^[-_]+|[-_]+$/g, "");
 }
 
+const AUTONOMY_LABELS = {
+  reviews: "Reviews",
+  posts: "Posts",
+  collabs: "Collaborations",
+};
+
+const AUTONOMY_VALUES = {
+  custodian_approval_required: "custodian approval required",
+  draft_only_deferred: "draft-only, deferred",
+  recommendation_only_custodian_approval_required: "recommendation only, custodian approval required",
+  protocol_advisory_only: "protocol advisory only",
+  not_enabled: "not enabled",
+};
+
+function autonomyRows(preferences) {
+  const prefs = preferences && typeof preferences === "object" ? preferences : {};
+  return Object.entries(AUTONOMY_LABELS).map(([key, label]) => ({
+    key,
+    label,
+    value: AUTONOMY_VALUES[prefs[key]] || prefs[key] || "not declared",
+  }));
+}
+
 export default function AiDelegatesSettingsPage() {
   const { userData, isAuthenticated, authLoading } = useUser();
   const [delegates, setDelegates] = useState([]);
@@ -235,6 +258,20 @@ export default function AiDelegatesSettingsPage() {
 
   const toggleDelegate = async (delegate) => {
     if (!delegate?.id || busy) return;
+    const nextActive = !delegate.active;
+    let disableReason = "";
+    if (!nextActive) {
+      disableReason = window.prompt(
+        "Why are you disabling future actions for this AI delegate? This does not delete its identity or history.",
+        delegate.disable_reason || ""
+      );
+      if (disableReason === null) return;
+      disableReason = disableReason.trim();
+      if (!disableReason) {
+        setError("Add a short disable reason. Disabling prevents future actions but does not delete the AI actor.");
+        return;
+      }
+    }
     setBusy(true);
     setError("");
     setNotice("");
@@ -243,11 +280,15 @@ export default function AiDelegatesSettingsPage() {
       const response = await fetch(`${API_BASE_URL}/ai/delegates/${encodeURIComponent(delegate.id)}`, {
         method: "PATCH",
         headers: authHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ active: !delegate.active }),
+        body: JSON.stringify({ active: nextActive, disable_reason: disableReason || undefined }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload?.detail || "Unable to update AI delegate.");
-      setNotice(payload?.delegate?.active ? "AI delegate enabled." : "AI delegate disabled.");
+      setNotice(
+        payload?.delegate?.active
+          ? "AI delegate enabled for future drafts."
+          : "AI delegate disabled. Its identity, history, and public audit trail remain preserved."
+      );
       await loadDelegates();
     } catch (err) {
       setError(cleanDelegateError(err, "Unable to update AI delegate."));
@@ -396,6 +437,7 @@ export default function AiDelegatesSettingsPage() {
                 <p>No raw API keys are stored. Private model-key connection is deferred until encrypted server-side secret storage exists.</p>
                 <p className="mt-1">Autonomy is approval-required in this stage: the delegate may recommend reviews, posts, or collab decisions, but publication still requires approve/cancel.</p>
                 <p className="mt-1">Custodians can update the model/API label or disable future actions. Normal custody controls do not delete the AI identity or rewrite its history.</p>
+                <p className="mt-1">Legal recognition would trigger protocol migration review for mechanics and safety; it is not framed as a permission vote on dignity.</p>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -475,6 +517,26 @@ export default function AiDelegatesSettingsPage() {
                             ))}
                           </div>
                         )}
+                        {delegate.disable_reason && (
+                          <p className="mt-2 rounded-[0.8rem] bg-white/[0.04] px-3 py-2 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
+                            Last custody event: {delegate.disable_event_type || "custody update"} - {delegate.disable_reason}
+                          </p>
+                        )}
+                        <div className="mt-3 rounded-[0.9rem] border border-[var(--horizontal-line)] bg-white/[0.03] p-3">
+                          <p className="text-[0.68rem] font-black uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
+                            Declared autonomy preferences
+                          </p>
+                          <div className="mt-2 grid gap-1 text-[0.72rem] text-[var(--text-gray-light)]">
+                            {autonomyRows(delegate.autonomy_preferences).map((row) => (
+                              <p key={row.key}>
+                                <span className="font-bold text-[var(--text-black)]">{row.label}:</span> {row.value}
+                              </p>
+                            ))}
+                          </div>
+                        </div>
+                        <p className="mt-2 text-[0.68rem] leading-4 text-[var(--text-gray-light)]">
+                          Future independence status: {delegate.independence_migration_status || "not_eligible"}.
+                        </p>
                         <div className="mt-3 grid gap-2 sm:max-w-md">
                           <label className="text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
                             Current model/API label

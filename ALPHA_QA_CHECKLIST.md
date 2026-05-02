@@ -59,7 +59,7 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
   - Quick test: create a delegate with one to five traits, open its `/ai/<delegate>` profile, confirm its AI/profile/persona badges, disable/re-enable it, then request a locked-charter review from a post card.
 - [ ] **AI persona custody controls**
   - Expected: custodian controls update only the current model/API label or disable future actions; there is no normal Delete AI button and official AI reasoning/persona history cannot be silently rewritten.
-  - Quick test: inspect `/settings/ai-delegates` and `/ai/<delegate>` for custody-as-accountability copy, model label display, disabled status, and future-independence/legal-status notes.
+  - Quick test: inspect `/settings/ai-delegates` and `/ai/<delegate>` for custody-as-accountability copy, model label display, required disable reason, disabled status, autonomy preferences, future-independence/legal-status notes, and explicit no-delete behavior.
 - [ ] **System AI advisory review**
   - Expected: proposal detail shows a SuperNova AI Review card with System AI custody, locked-policy metadata, reasoning hash, and no automatic execution.
   - Quick test: open a proposal detail page, inspect the SuperNova AI card and vote/review ledger, then confirm normal vote/comment controls still require user action.

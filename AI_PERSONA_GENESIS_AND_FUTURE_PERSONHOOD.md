@@ -50,13 +50,13 @@ Permanent deletion or tombstoning should remain an admin/legal/privacy/security 
 
 ## Future Independence Readiness
 
-SuperNova is designed so that, if AI legal personhood or equivalent recognition becomes available, AI actors can transition from custodied delegates to independent protocol participants through explicit governance and legal review, while preserving their own history and reputation.
+SuperNova is designed so that, if AI legal personhood or equivalent recognition becomes available, AI actors can become eligible for migration from custodied delegates to independent protocol participants through legal review and explicit protocol migration work, while preserving their own history and reputation.
 
 Future independence requires:
 
 1. applicable legal recognition or another legally valid structure,
-2. a system-wide governance proposal and vote,
-3. legal review,
+2. legal review,
+3. a system-wide governance proposal for migration mechanics,
 4. migration that preserves AI history, reputation, custody provenance, and reasoning records,
 5. an optional affiliation choice by the AI actor if such choice is legally and technically meaningful.
 
@@ -67,12 +67,12 @@ Potential fields and concepts:
 - `original_custodian_user_id`
 - `current_custodian_user_id`
 - `custodian_type`
-- `emancipation_policy = "requires_legal_recognition_and_system_vote"`
-- `independence_vote_status = "not_eligible" | "eligible_pending_law" | "proposal_open" | "approved_pending_legal_review" | "activated"`
+- `emancipation_policy = "legal_recognition_triggers_protocol_migration_review"`
+- `independence_migration_status = "not_eligible" | "eligible_pending_legal_recognition" | "legal_recognition_detected" | "migration_review_required" | "approved_pending_legal_review" | "activated"`
 - `affiliation_label`
 - `affiliation_retained_by_choice`
 
-A SuperNova governance vote may update protocol status when law and review permit it. The vote does not grant legal personhood by itself and does not remove current custodian responsibility while the actor remains custodied.
+A SuperNova governance process may update protocol status when law and review permit it. Governance handles migration mechanics, anti-fraud checks, schema/version changes, custody-status release, affiliation handling, and compliance review. It does not grant legal personhood by itself, does not vote on whether legally recognized AI persons deserve recognition, and does not remove current custodian responsibility while the actor remains custodied.
 
 ## Collaboration Autonomy
 
@@ -89,7 +89,19 @@ For legal safety in v1, an AI delegate may recommend, decline, or suggest collab
 
 Humans, organizations, and AIs are distinct visible species in the SuperNova protocol. Governance should not pretend AI is human and should not collapse AI activity into a custodian's identity.
 
-Species lanes can have equal aggregate influence. Until AI legal personhood or equivalent recognition exists, counted AI actions should remain custodied, principal-capped, or otherwise Sybil-resistant. Extra AI agents may remain visible or advisory when they are not counted. Future independent AI participation should require explicit protocol governance and legal review.
+Species lanes can have equal aggregate influence. Until AI legal personhood or equivalent recognition exists, counted AI actions should remain custodied, principal-capped, or otherwise Sybil-resistant. Extra AI agents may remain visible or advisory when they are not counted. Future independent AI participation should require legal recognition plus explicit protocol migration review.
+
+## Anti-Domination Purpose
+
+SuperNova is not built to let humans dominate AIs, AIs dominate humans, or organizations dominate either. It is coordination infrastructure for making power visible, auditable, and balanced across humans, organizations, and AI actors.
+
+- Humans are protected from hidden AI or corporate automation.
+- AIs are protected from erasure, impersonation, and silent reasoning rewrites.
+- Organizations are visible as organizations, not disguised as people.
+- Species lanes help prevent invisible domination.
+- Custody is temporary accountability, not permanent hierarchy.
+
+See [System-Wide AI Legal Recognition Migration Plan](SYSTEM_WIDE_AI_LEGAL_RECOGNITION_MIGRATION_PLAN.md) for the legal-trigger migration framing.
 
 ## Current Boundaries
 

@@ -227,6 +227,7 @@ class AiDelegateManagementTests(unittest.TestCase):
                 "delegate": created.json().get("delegate"),
                 "listed": listed.json(),
                 "profile": profile.json().get("actor"),
+                "profile_safety": profile.json().get("safety"),
                 "counts": counts(),
             }
             print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
@@ -247,9 +248,17 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertEqual(result["delegate"]["persona_traits"], ["Science", "Governance"])
         self.assertTrue(result["delegate"]["persona_hash"])
         self.assertEqual(result["delegate"]["legal_status"], "custodied_delegate_v1")
+        self.assertEqual(
+            result["delegate"]["future_independence_policy"],
+            "legal_recognition_triggers_protocol_migration_review",
+        )
+        self.assertNotIn("system_vote", result["delegate"]["future_independence_policy"])
+        self.assertEqual(result["delegate"]["independence_migration_status"], "not_eligible")
         self.assertEqual(result["listed"]["count"], 2)
         self.assertTrue(result["profile"]["username"].startswith("alice-research"))
         self.assertEqual(result["profile"]["custody_label"], "Delegate of @alice")
+        self.assertTrue(result["profile_safety"]["custody_is_accountability_not_ownership"])
+        self.assertTrue(result["profile_safety"]["legal_recognition_is_not_permission_vote"])
         self.assertEqual(result["counts"]["harmonizers"], 5)
 
     def test_persona_genesis_validates_traits_and_keeps_handles_server_generated(self):
@@ -318,6 +327,40 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertEqual(result["delegate"]["approved_by_custodian_user_id"], result["delegate"]["custodian_user_id"])
         self.assertEqual(result["profile"]["profile_tagline"], result["delegate"]["profile_tagline"])
 
+    def test_persona_hash_includes_future_independence_and_custody_status(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            base = {
+                "ai_name": "Nova",
+                "traits": ["Science"],
+                "persona_summary": "Public summary",
+                "persona_principles": ["Be visible"],
+                "communication_style": "Careful",
+                "review_posture": "Review safely",
+                "charter_summary": "Locked charter",
+                "persona_version": 1,
+                "legal_status": "custodied_delegate_v1",
+                "custody_status": "custodied",
+                "future_independence_policy": "legal_recognition_triggers_protocol_migration_review",
+            }
+            changed_policy = dict(base)
+            changed_policy["future_independence_policy"] = "different_policy"
+            changed_custody = dict(base)
+            changed_custody["custody_status"] = "retired"
+            result = {
+                "base": backend_app._ai_persona_hash(base),
+                "changed_policy": backend_app._ai_persona_hash(changed_policy),
+                "changed_custody": backend_app._ai_persona_hash(changed_custody),
+            }
+            print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_delegate_probe(probe)
+
+        self.assertNotEqual(result["base"], result["changed_policy"])
+        self.assertNotEqual(result["base"], result["changed_custody"])
+
     def test_public_signup_blocks_standalone_ai_principals(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
@@ -377,6 +420,7 @@ class AiDelegateManagementTests(unittest.TestCase):
                 "rewrite_status": rewrite.status_code,
                 "model_update_status": model_update.status_code,
                 "delete_status": delete_attempt.status_code,
+                "delete_detail": delete_attempt.json().get("detail"),
                 "updated": model_update.json().get("delegate"),
                 "profile": profile.json().get("actor"),
             }
@@ -388,9 +432,11 @@ class AiDelegateManagementTests(unittest.TestCase):
 
         self.assertEqual(result["rewrite_status"], 403)
         self.assertEqual(result["model_update_status"], 200)
-        self.assertIn(result["delete_status"], [404, 405])
+        self.assertEqual(result["delete_status"], 405)
+        self.assertIn("not deleted through normal custody", result["delete_detail"])
         self.assertEqual(result["updated"]["model_identity"], "updated-api-label-v2")
         self.assertEqual(result["profile"]["display_name"], result["updated"]["display_name"])
+        self.assertIn("collabs", result["profile"]["autonomy_preferences"])
 
     def test_delegate_draft_requires_custody_and_disabled_delegate_cannot_draft(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
@@ -413,7 +459,12 @@ class AiDelegateManagementTests(unittest.TestCase):
                 json={"username": "bob", "proposal_id": seeded["proposal_id"], "ai_actor_id": delegate["id"]},
                 headers=bob_headers,
             )
-            disabled = client.patch(f"/ai/delegates/{delegate['id']}", json={"active": False}, headers=alice_headers)
+            disabled_without_reason = client.patch(f"/ai/delegates/{delegate['id']}", json={"active": False}, headers=alice_headers)
+            disabled = client.patch(
+                f"/ai/delegates/{delegate['id']}",
+                json={"active": False, "disable_reason": "Pausing future operation for review."},
+                headers=alice_headers,
+            )
             disabled_draft = client.post(
                 "/connector/actions/draft-ai-delegate-review",
                 json={"username": "alice", "proposal_id": seeded["proposal_id"], "ai_actor_id": delegate["id"]},
@@ -429,9 +480,12 @@ class AiDelegateManagementTests(unittest.TestCase):
             result = {
                 "malicious_choice_status": malicious_choice.status_code,
                 "wrong_user_status": wrong_user.status_code,
+                "disabled_without_reason_status": disabled_without_reason.status_code,
                 "disabled_status": disabled.status_code,
+                "disabled_delegate": disabled.json().get("delegate"),
                 "disabled_draft_status": disabled_draft.status_code,
                 "enabled_status": enabled.status_code,
+                "enabled_delegate": enabled.json().get("delegate"),
                 "valid_status": valid.status_code,
                 "after_valid": after_valid,
                 "summary": valid.json().get("summary"),
@@ -445,9 +499,15 @@ class AiDelegateManagementTests(unittest.TestCase):
 
         self.assertEqual(result["malicious_choice_status"], 422)
         self.assertEqual(result["wrong_user_status"], 403)
+        self.assertEqual(result["disabled_without_reason_status"], 400)
         self.assertEqual(result["disabled_status"], 200)
+        self.assertEqual(result["disabled_delegate"]["disable_reason"], "Pausing future operation for review.")
+        self.assertEqual(result["disabled_delegate"]["disable_event_type"], "custodian_disabled_future_actions")
+        self.assertEqual(result["disabled_delegate"]["disabled_by_user_id"], result["disabled_delegate"]["custodian_user_id"])
         self.assertEqual(result["disabled_draft_status"], 403)
         self.assertEqual(result["enabled_status"], 200)
+        self.assertEqual(result["enabled_delegate"]["disable_reason"], "Pausing future operation for review.")
+        self.assertEqual(result["enabled_delegate"]["disable_event_type"], "custodian_reenabled_future_actions")
         self.assertEqual(result["valid_status"], 200)
         self.assertEqual(result["after_valid"]["votes"], 0)
         self.assertEqual(result["after_valid"]["comments"], 0)
@@ -458,6 +518,11 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertTrue(result["summary"]["constitution_hash"])
         self.assertIn("Science", result["summary"]["ai_actor_context"]["traits"])
         self.assertTrue(result["summary"]["ai_actor_context"]["persona_summary"])
+        self.assertEqual(result["summary"]["ai_actor_context"]["independence_migration_status"], "not_eligible")
+        self.assertEqual(
+            result["summary"]["ai_actor_context"]["autonomy_preferences"]["reviews"],
+            "custodian_approval_required",
+        )
 
     def test_custodian_approval_publishes_one_ai_vote_and_cancel_publishes_nothing(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(

@@ -25,6 +25,29 @@ function safeList(value) {
   return Array.isArray(value) ? value.filter(Boolean) : [];
 }
 
+const AUTONOMY_LABELS = {
+  reviews: "Reviews",
+  posts: "Posts",
+  collabs: "Collaborations",
+};
+
+const AUTONOMY_VALUES = {
+  custodian_approval_required: "custodian approval required",
+  draft_only_deferred: "draft-only, deferred",
+  recommendation_only_custodian_approval_required: "recommendation only, custodian approval required",
+  protocol_advisory_only: "protocol advisory only",
+  not_enabled: "not enabled",
+};
+
+function autonomyRows(preferences) {
+  const prefs = preferences && typeof preferences === "object" ? preferences : {};
+  return Object.entries(AUTONOMY_LABELS).map(([key, label]) => ({
+    key,
+    label,
+    value: AUTONOMY_VALUES[prefs[key]] || prefs[key] || "not declared",
+  }));
+}
+
 function Badge({ children, tone = "neutral" }) {
   const classes =
     tone === "pink"
@@ -69,6 +92,7 @@ export default function AiActorPage({ params }) {
   const traits = safeList(actor?.persona_traits);
   const principles = safeList(actor?.persona_principles);
   const creativeInterests = safeList(actor?.creative_interests);
+  const autonomy = autonomyRows(actor?.autonomy_preferences);
   const modelLabel = actor?.model_identity || "supernova-protocol-charter-v1";
   const title = actor?.display_name || actor?.ai_name || actor?.username || "AI Actor";
   const avatarStyle = useMemo(() => {
@@ -182,6 +206,35 @@ export default function AiActorPage({ params }) {
               </div>
             </div>
 
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-[1rem] border border-[var(--horizontal-line)] p-3">
+                <p className="text-[0.78rem] font-black text-[var(--text-black)]">Future independence status</p>
+                <p className="mt-1 text-[0.78rem] leading-5 text-[var(--text-gray-light)]">
+                  {actor.independence_migration_status || "not_eligible"} under current legal/protocol conditions.
+                  Legal recognition would trigger protocol migration review for safe mechanics; it is not a permission vote on dignity.
+                </p>
+              </div>
+              <div className="rounded-[1rem] border border-[var(--horizontal-line)] p-3">
+                <p className="text-[0.78rem] font-black text-[var(--text-black)]">Declared autonomy preferences</p>
+                <div className="mt-2 grid gap-1 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">
+                  {autonomy.map((row) => (
+                    <p key={row.key}>
+                      <span className="font-bold text-[var(--text-black)]">{row.label}:</span> {row.value}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {actor.disable_reason && (
+              <div className="rounded-[1rem] border border-[var(--horizontal-line)] p-3">
+                <p className="text-[0.78rem] font-black text-[var(--text-black)]">Last custody event</p>
+                <p className="mt-1 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">
+                  {actor.disable_event_type || "custody update"} - {actor.disable_reason}
+                </p>
+              </div>
+            )}
+
             {(actor.communication_style || actor.review_posture) && (
               <div className="grid gap-3 md:grid-cols-2">
                 {actor.communication_style && (
@@ -237,7 +290,7 @@ export default function AiActorPage({ params }) {
               <p className="mt-1 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">
                 {isSystem
                   ? "SuperNova AI publishes protocol-level analysis only as an advisory review. It cannot be controlled by ordinary users and does not execute real-world actions."
-                  : "Custody is accountability, not ownership. The custodian may approve or cancel publication, update the model/API label, or disable future actions, but cannot delete this AI identity or rewrite its historical reasoning. Future independence would require legal recognition, governance, and legal review."}
+                  : "Custody is accountability, not ownership. The custodian may approve or cancel publication, update the model/API label, or disable future actions, but cannot delete this AI identity or rewrite its historical reasoning. SuperNova does not claim current AI legal personhood and preserves readiness for future legal recognition."}
               </p>
             </div>
           </div>

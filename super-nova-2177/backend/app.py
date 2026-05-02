@@ -966,6 +966,15 @@ def _system_ai_actor_payload() -> Dict[str, Any]:
             "Advisory and manual-preview-only; it does not execute real-world actions."
         ),
         "avatar_url": "",
+        "legal_status": "protocol_chartered_system_ai_v1",
+        "custody_status": "protocol_chartered",
+        "future_independence_policy": "protocol_chartered_not_applicable",
+        "independence_migration_status": "protocol_chartered_not_applicable",
+        "autonomy_preferences": {
+            "reviews": "protocol_advisory_only",
+            "posts": "not_enabled",
+            "collabs": "not_enabled",
+        },
         "active": True,
     }
 
@@ -973,8 +982,9 @@ def _system_ai_actor_payload() -> Dict[str, Any]:
 AI_DELEGATE_USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{2,31}$")
 AI_DELEGATE_RESERVED_USERNAMES = {SUPERNOVA_SYSTEM_AI_USERNAME, "supernova", "system-ai", "protocol-ai"}
 AI_PERSONA_LEGAL_STATUS = "custodied_delegate_v1"
-AI_PERSONA_FUTURE_INDEPENDENCE_POLICY = "requires_legal_recognition_and_system_vote"
+AI_PERSONA_FUTURE_INDEPENDENCE_POLICY = "legal_recognition_triggers_protocol_migration_review"
 AI_PERSONA_CUSTODY_STATUS = "custodied"
+AI_PERSONA_INDEPENDENCE_MIGRATION_STATUS = "not_eligible"
 AI_PERSONA_VERSION = 1
 AI_PERSONA_TRAITS = [
     "Science",
@@ -1069,6 +1079,15 @@ def _normalize_persona_traits(values: Optional[List[str]]) -> List[str]:
     return traits
 
 
+def _normalize_disable_reason(value: Optional[str]) -> str:
+    reason = re.sub(r"\s+", " ", (value or "").strip())
+    if not reason:
+        raise HTTPException(status_code=400, detail="A short disable reason is required")
+    if len(reason) > 240:
+        raise HTTPException(status_code=400, detail="Disable reason must be 240 characters or fewer")
+    return reason
+
+
 def _json_dumps_compact(value: Any) -> str:
     return json.dumps(value, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
 
@@ -1095,6 +1114,10 @@ def _ai_persona_hash(persona: Dict[str, Any]) -> str:
         "charter_summary": persona.get("charter_summary") or "",
         "persona_version": persona.get("persona_version") or AI_PERSONA_VERSION,
         "legal_status": persona.get("legal_status") or AI_PERSONA_LEGAL_STATUS,
+        "custody_status": persona.get("custody_status") or AI_PERSONA_CUSTODY_STATUS,
+        "future_independence_policy": (
+            persona.get("future_independence_policy") or AI_PERSONA_FUTURE_INDEPENDENCE_POLICY
+        ),
     }
     return hashlib.sha256(_json_dumps_compact(stable).encode("utf-8")).hexdigest()
 
@@ -1162,6 +1185,14 @@ def _ensure_ai_actors_table(db: Session) -> None:
             custody_status TEXT,
             future_independence_policy TEXT,
             original_custodian_user_id INTEGER,
+            autonomy_preferences TEXT,
+            independence_migration_status TEXT,
+            disable_reason TEXT,
+            disable_event_type TEXT,
+            disabled_by_user_id INTEGER,
+            retired_at TIMESTAMP,
+            retire_reason TEXT,
+            last_custody_event_at TIMESTAMP,
             active BOOLEAN NOT NULL DEFAULT {active_default},
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -1197,6 +1228,13 @@ def _ensure_ai_actors_table(db: Session) -> None:
         "future_independence_policy": "TEXT",
         "original_custodian_user_id": "INTEGER",
         "autonomy_preferences": "TEXT",
+        "independence_migration_status": "TEXT",
+        "disable_reason": "TEXT",
+        "disable_event_type": "TEXT",
+        "disabled_by_user_id": "INTEGER",
+        "retired_at": "TIMESTAMP",
+        "retire_reason": "TEXT",
+        "last_custody_event_at": "TIMESTAMP",
     }
     for column, column_type in additions.items():
         if column not in existing_columns:
@@ -1245,6 +1283,15 @@ def _row_to_ai_actor_payload(row) -> Optional[Dict[str, Any]]:
             getattr(row, "future_independence_policy", "") or AI_PERSONA_FUTURE_INDEPENDENCE_POLICY
         ),
         "original_custodian_user_id": getattr(row, "original_custodian_user_id", None),
+        "independence_migration_status": (
+            getattr(row, "independence_migration_status", "") or AI_PERSONA_INDEPENDENCE_MIGRATION_STATUS
+        ),
+        "disable_reason": getattr(row, "disable_reason", "") or "",
+        "disable_event_type": getattr(row, "disable_event_type", "") or "",
+        "disabled_by_user_id": getattr(row, "disabled_by_user_id", None),
+        "retired_at": _format_timestamp(getattr(row, "retired_at", None)),
+        "retire_reason": getattr(row, "retire_reason", "") or "",
+        "last_custody_event_at": _format_timestamp(getattr(row, "last_custody_event_at", None)),
         "autonomy_preferences": _json_loads(
             getattr(row, "autonomy_preferences", None),
             {
@@ -1345,6 +1392,13 @@ def _ai_delegate_action_metadata(actor_payload: Dict[str, Any]) -> Dict[str, Any
         "persona_version": actor_payload.get("persona_version") or AI_PERSONA_VERSION,
         "legal_status": actor_payload.get("legal_status") or AI_PERSONA_LEGAL_STATUS,
         "custody_status": actor_payload.get("custody_status") or AI_PERSONA_CUSTODY_STATUS,
+        "future_independence_policy": (
+            actor_payload.get("future_independence_policy") or AI_PERSONA_FUTURE_INDEPENDENCE_POLICY
+        ),
+        "independence_migration_status": (
+            actor_payload.get("independence_migration_status") or AI_PERSONA_INDEPENDENCE_MIGRATION_STATUS
+        ),
+        "autonomy_preferences": actor_payload.get("autonomy_preferences") or {},
     }
 
 
@@ -1416,6 +1470,7 @@ def _fallback_persona_draft(
         "legal_status": AI_PERSONA_LEGAL_STATUS,
         "custody_status": AI_PERSONA_CUSTODY_STATUS,
         "future_independence_policy": AI_PERSONA_FUTURE_INDEPENDENCE_POLICY,
+        "independence_migration_status": AI_PERSONA_INDEPENDENCE_MIGRATION_STATUS,
         "autonomy_preferences": {
             "reviews": "custodian_approval_required",
             "posts": "draft_only_deferred",
@@ -1480,6 +1535,7 @@ def _try_openai_persona_draft(
             "Manual-preview-only; no automatic execution.",
             "Official reasoning must be generated from a locked charter and not edited by humans.",
             "Custody is accountability, not ownership.",
+            "Legal recognition triggers protocol migration review; it is not a permission vote on dignity.",
         ],
         "fields": [
             "display_name",
@@ -1561,6 +1617,14 @@ def _build_ai_actor_context(db: Session, actor_payload: Dict[str, Any]) -> Dict[
         "persona_hash": actor_payload.get("persona_hash") or "",
         "custody_label": actor_payload.get("custody_label") or "",
         "legal_status": actor_payload.get("legal_status") or AI_PERSONA_LEGAL_STATUS,
+        "custody_status": actor_payload.get("custody_status") or AI_PERSONA_CUSTODY_STATUS,
+        "future_independence_policy": (
+            actor_payload.get("future_independence_policy") or AI_PERSONA_FUTURE_INDEPENDENCE_POLICY
+        ),
+        "independence_migration_status": (
+            actor_payload.get("independence_migration_status") or AI_PERSONA_INDEPENDENCE_MIGRATION_STATUS
+        ),
+        "autonomy_preferences": actor_payload.get("autonomy_preferences") or {},
         "recent_public_actions": [],
     }
     harmonizer_id = actor_payload.get("harmonizer_user_id")
@@ -1926,6 +1990,7 @@ class AiDelegateUpdateIn(BaseModel):
     model_provider: Optional[str] = None
     model_identity: Optional[str] = None
     active: Optional[bool] = None
+    disable_reason: Optional[str] = None
 
 
 class ConnectorDraftCommentIn(BaseModel):
@@ -4058,14 +4123,18 @@ def create_ai_delegate(
                 "profile_tagline, persona_summary, persona_principles, communication_style, review_posture, "
                 "creative_interests, avatar_prompt, persona_hash, persona_version, created_by_custodian_user_id, "
                 "approved_by_custodian_user_id, approved_at, legal_status, custody_status, future_independence_policy, "
-                "original_custodian_user_id, autonomy_preferences, active, created_at, updated_at) "
+                "original_custodian_user_id, autonomy_preferences, independence_migration_status, disable_reason, "
+                "disable_event_type, disabled_by_user_id, retired_at, retire_reason, last_custody_event_at, "
+                "active, created_at, updated_at) "
                 "VALUES (:username, :display_name, 'ai', 'principal_delegate', :custodian_user_id, :custodian_type, "
                 ":custody_label, :harmonizer_user_id, :model_provider, :model_identity, :charter_name, "
                 ":constitution_hash, :prompt_policy_version, :public_description, :avatar_url, :ai_name, :persona_traits, "
                 ":profile_tagline, :persona_summary, :persona_principles, :communication_style, :review_posture, "
                 ":creative_interests, :avatar_prompt, :persona_hash, :persona_version, :created_by_custodian_user_id, "
                 ":approved_by_custodian_user_id, :approved_at, :legal_status, :custody_status, :future_independence_policy, "
-                ":original_custodian_user_id, :autonomy_preferences, :active, :created_at, :updated_at)"
+                ":original_custodian_user_id, :autonomy_preferences, :independence_migration_status, :disable_reason, "
+                ":disable_event_type, :disabled_by_user_id, :retired_at, :retire_reason, :last_custody_event_at, "
+                ":active, :created_at, :updated_at)"
             ),
             {
                 "username": username,
@@ -4109,6 +4178,15 @@ def create_ai_delegate(
                         "collabs": "recommendation_only_custodian_approval_required",
                     }
                 ),
+                "independence_migration_status": (
+                    persona.get("independence_migration_status") or AI_PERSONA_INDEPENDENCE_MIGRATION_STATUS
+                ),
+                "disable_reason": "",
+                "disable_event_type": "",
+                "disabled_by_user_id": None,
+                "retired_at": None,
+                "retire_reason": "",
+                "last_custody_event_at": now,
                 "active": True,
                 "created_at": now,
                 "updated_at": now,
@@ -4159,17 +4237,37 @@ def update_ai_delegate(
         else current.get("model_identity", SUPERNOVA_AI_MODEL_IDENTITY)
     )
     model_identity = (model_identity or SUPERNOVA_AI_MODEL_IDENTITY).strip()[:160] or SUPERNOVA_AI_MODEL_IDENTITY
-    active = current.get("active", True) if payload.active is None else bool(payload.active)
+    current_active = bool(current.get("active", True))
+    active_requested = payload.active is not None
+    active = current_active if payload.active is None else bool(payload.active)
     if not display_name:
         raise HTTPException(status_code=400, detail="display_name is required")
-    disabled_at = None if active else datetime.datetime.utcnow()
     now = datetime.datetime.utcnow()
+    disabled_at = getattr(row, "disabled_at", None)
+    disable_reason = current.get("disable_reason", "") or ""
+    disable_event_type = current.get("disable_event_type", "") or ""
+    disabled_by_user_id = current.get("disabled_by_user_id")
+    last_custody_event_at = getattr(row, "last_custody_event_at", None)
+
+    if active_requested and not active:
+        disable_reason = _normalize_disable_reason(payload.disable_reason)
+        disable_event_type = "custodian_disabled_future_actions"
+        disabled_by_user_id = getattr(principal, "id", None)
+        disabled_at = now
+        last_custody_event_at = now
+    elif active_requested and active:
+        disabled_at = None
+        disable_event_type = "custodian_reenabled_future_actions"
+        disabled_by_user_id = getattr(principal, "id", None)
+        last_custody_event_at = now
 
     try:
         db.execute(
             text(
                 "UPDATE ai_actors SET model_provider = :model_provider, model_identity = :model_identity, "
-                "active = :active, updated_at = :updated_at, disabled_at = :disabled_at "
+                "active = :active, updated_at = :updated_at, disabled_at = :disabled_at, "
+                "disable_reason = :disable_reason, disable_event_type = :disable_event_type, "
+                "disabled_by_user_id = :disabled_by_user_id, last_custody_event_at = :last_custody_event_at "
                 "WHERE id = :id"
             ),
             {
@@ -4178,6 +4276,10 @@ def update_ai_delegate(
                 "active": active,
                 "updated_at": now,
                 "disabled_at": disabled_at,
+                "disable_reason": disable_reason,
+                "disable_event_type": disable_event_type,
+                "disabled_by_user_id": disabled_by_user_id,
+                "last_custody_event_at": last_custody_event_at,
                 "id": delegate_id,
             },
         )
@@ -4191,6 +4293,17 @@ def update_ai_delegate(
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to update AI delegate: {str(exc)}")
+
+
+@app.delete("/ai/delegates/{delegate_id}", summary="Refuse normal AI delegate deletion")
+def delete_ai_delegate_refused(delegate_id: int):
+    raise HTTPException(
+        status_code=405,
+        detail=(
+            "AI delegate identities are not deleted through normal custody. Use disable or retire status. "
+            "Admin, legal, privacy, abuse, and security removal paths are reserved where required."
+        ),
+    )
 
 
 @app.get("/ai-actors/{username}", summary="Read a public AI actor profile")
@@ -4216,6 +4329,8 @@ def get_ai_actor_profile(username: str, db: Session = Depends(get_db)):
             "safety": {
                 "approval_required": True,
                 "manual_preview_only": True,
+                "custody_is_accountability_not_ownership": True,
+                "legal_recognition_is_not_permission_vote": True,
                 "official_reasoning_should_be_generated_from_locked_charters": True,
                 "no_automatic_execution": True,
             },
