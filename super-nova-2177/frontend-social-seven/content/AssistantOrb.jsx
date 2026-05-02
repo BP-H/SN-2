@@ -80,6 +80,7 @@ function hasUsableAiReply(response, payload = {}) {
 function connectorActionLabel(actionType = "") {
   const labels = {
     draft_ai_review: "AI review draft",
+    draft_ai_comment: "AI comment draft",
     draft_vote: "Vote draft",
     draft_comment: "Comment draft",
     draft_proposal: "Post draft",
@@ -104,6 +105,11 @@ function connectorActionPreview(action = {}) {
     const cleanRationale = String(rationale || "").replace(/\s+/g, " ").trim();
     const preview = `${vote}: ${cleanRationale || "AI review draft"}`;
     return preview.length > 120 ? `${preview.slice(0, 120)}...` : preview;
+  }
+  if (action.action_type === "draft_ai_comment") {
+    const body = payload.generated_comment || payload.body || "";
+    const cleanBody = String(body || "").replace(/\s+/g, " ").trim();
+    return cleanBody.length > 120 ? `${cleanBody.slice(0, 120)}...` : cleanBody || "AI-authored comment draft";
   }
   const text =
     payload.body ||
@@ -133,7 +139,7 @@ function compactActionHash(value) {
 
 function aiReviewDetailRows(action = {}) {
   const payload = action.draft_payload || {};
-  if (action.action_type !== "draft_ai_review") return [];
+  if (action.action_type !== "draft_ai_review" && action.action_type !== "draft_ai_comment") return [];
   const prefs = payload.autonomy_preferences && typeof payload.autonomy_preferences === "object" ? payload.autonomy_preferences : {};
   const actorName = payload.ai_actor_display_name || payload.display_name || payload.actor || payload.ai_actor_username;
   return [
@@ -141,8 +147,10 @@ function aiReviewDetailRows(action = {}) {
     payload.custody_label && ["Custody", payload.custody_label],
     payload.intended_choice && ["Intended vote", payload.intended_choice],
     payload.model_identity && ["Model/policy", payload.model_identity],
+    payload.content_hash && ["Content hash", compactActionHash(payload.content_hash)],
     payload.reasoning_hash && ["Reasoning hash", compactActionHash(payload.reasoning_hash)],
-    prefs.reviews && ["Autonomy", prefs.reviews === "custodian_approval_required" ? "reviews require custodian approval" : prefs.reviews],
+    action.action_type === "draft_ai_comment" && prefs.posts && ["Autonomy", "AI-authored content requires custodian approval"],
+    action.action_type === "draft_ai_review" && prefs.reviews && ["Autonomy", prefs.reviews === "custodian_approval_required" ? "reviews require custodian approval" : prefs.reviews],
   ].filter(Boolean);
 }
 
@@ -596,6 +604,8 @@ export default function AssistantOrb() {
       const approveEndpoint =
         action.action_type === "draft_ai_review"
           ? `${API_BASE_URL}/connector/actions/${action.id}/approve-ai-review`
+          : action.action_type === "draft_ai_comment"
+          ? `${API_BASE_URL}/connector/actions/${action.id}/approve-ai-comment`
           : `${API_BASE_URL}/connector/actions/${action.id}/approve-vote`;
       const endpoint =
         reviewAction === "approve"
@@ -614,6 +624,8 @@ export default function AssistantOrb() {
         reviewAction === "approve"
           ? action.action_type === "draft_ai_review"
             ? "AI review published."
+            : action.action_type === "draft_ai_comment"
+            ? "AI-authored comment published."
             : "Vote action approved."
           : "Draft action canceled."
       );
@@ -1115,7 +1127,7 @@ export default function AssistantOrb() {
                 </div>
               ) : connectorActions.length === 0 ? (
                 <div className="ai-cursor-result-box rounded-[0.85rem] p-3 text-[0.78rem]">
-                  No draft actions waiting. AI review drafts, vote drafts, and collab requests will appear here before anything publishes.
+                  No draft actions waiting. AI review drafts, AI-authored comment drafts, vote drafts, and collab requests will appear here before anything publishes.
                 </div>
               ) : (
                 <div className="ai-actions-list flex max-h-64 flex-col gap-2 overflow-y-auto pr-1">
@@ -1125,7 +1137,9 @@ export default function AssistantOrb() {
                     const isCanceling = busyKey === `cancel:${action.id}`;
                     const isVoteDraft = action.action_type === "draft_vote";
                     const isAiReviewDraft = action.action_type === "draft_ai_review";
-                    const isApprovableDraft = isVoteDraft || isAiReviewDraft;
+                    const isAiCommentDraft = action.action_type === "draft_ai_comment";
+                    const isAiAuthoredDraft = isAiReviewDraft || isAiCommentDraft;
+                    const isApprovableDraft = isVoteDraft || isAiReviewDraft || isAiCommentDraft;
                     const confidenceLabel = connectorActionConfidence(action);
                     const aiReviewRows = aiReviewDetailRows(action);
                     return (
@@ -1146,10 +1160,12 @@ export default function AssistantOrb() {
                         <p className="mt-2 line-clamp-2 text-[0.74rem] leading-5 text-[var(--text-gray-light)]">
                           {connectorActionPreview(action)}
                         </p>
-                        {isAiReviewDraft && (
+                        {isAiAuthoredDraft && (
                           <div className="mt-2 rounded-[0.7rem] border border-[var(--pink)]/20 bg-[var(--pink)]/8 px-2.5 py-2">
                             <p className="text-[0.68rem] font-semibold leading-5 text-[var(--text-gray-light)]">
-                              Approval publishes exactly one AI vote and one rationale comment.
+                              {isAiReviewDraft
+                                ? "Approval publishes exactly one AI vote and one rationale comment."
+                                : "Approval publishes exactly one AI-authored comment."}
                             </p>
                             {aiReviewRows.length > 0 && (
                               <div className="mt-2 grid gap-1 text-[0.66rem] leading-4 text-[var(--text-gray-light)]">

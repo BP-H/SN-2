@@ -159,6 +159,11 @@ function ProposalCard({
   const [aiReviewBusy, setAiReviewBusy] = useState(false);
   const [aiReviewStatus, setAiReviewStatus] = useState("");
   const [aiReviewError, setAiReviewError] = useState("");
+  const [aiCommentOpen, setAiCommentOpen] = useState(false);
+  const [aiCommentBusy, setAiCommentBusy] = useState(false);
+  const [aiCommentFocus, setAiCommentFocus] = useState("");
+  const [aiCommentStatus, setAiCommentStatus] = useState("");
+  const [aiCommentError, setAiCommentError] = useState("");
   const [aiDelegates, setAiDelegates] = useState([]);
   const [aiDelegatesLoading, setAiDelegatesLoading] = useState(false);
   const [selectedAiDelegateId, setSelectedAiDelegateId] = useState("");
@@ -645,6 +650,60 @@ function ProposalCard({
       setErrorMsg?.([message]);
     } finally {
       setAiReviewBusy(false);
+    }
+  };
+
+  const handleDraftAiComment = async () => {
+    if (aiCommentBusy) return;
+    if (!id) {
+      setAiCommentError("That post is missing a proposal id.");
+      return;
+    }
+    if (!userData?.name) {
+      window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      return;
+    }
+    if (aiDelegateOptions.length === 0) {
+      setAiCommentError("Create an AI delegate first.");
+      return;
+    }
+    const selectedDelegate =
+      aiDelegateOptions.find((delegate) => String(delegate.id || "") === String(selectedAiDelegateId || "")) ||
+      aiDelegateOptions[0];
+
+    setAiCommentBusy(true);
+    setAiCommentError("");
+    setAiCommentStatus("");
+    try {
+      requireBackendAuthSession();
+      const response = await fetch(`${API_BASE_URL}/connector/actions/draft-ai-delegate-comment`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          username: userData.name,
+          proposal_id: Number(id),
+          instruction: aiCommentFocus,
+          ...(selectedDelegate?.id ? { ai_actor_id: Number(selectedDelegate.id) } : { ai_actor_username: selectedDelegate?.username }),
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(aiReviewErrorMessage(payload?.detail));
+      }
+      setAiCommentStatus("AI-authored comment draft saved. Approve it in AI Actions before publication.");
+      setAiCommentFocus("");
+      setNotify?.(["AI comment draft saved for approval."]);
+      window.dispatchEvent(
+        new CustomEvent("supernova:ai-actions-refresh", {
+          detail: { notice: "AI-authored comment draft created. Approve it here before publishing." },
+        })
+      );
+    } catch (error) {
+      const message = aiReviewErrorMessage(error);
+      setAiCommentError(message);
+      setErrorMsg?.([message]);
+    } finally {
+      setAiCommentBusy(false);
     }
   };
 
@@ -1524,10 +1583,105 @@ function ProposalCard({
               <span className="truncate text-[0.72rem] font-semibold uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
                 Comments
               </span>
-              <span className="shrink-0 rounded-full bg-white/[0.055] px-2.5 py-1 text-[0.68rem] font-bold text-[var(--text-gray-light)]">
-                {localComments.length}
-              </span>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {userData?.name && (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setAiCommentOpen((value) => !value);
+                    }}
+                    className="rounded-full border border-[var(--horizontal-line)] px-2.5 py-1 text-[0.66rem] font-bold text-[var(--text-black)] hover:border-[var(--pink)] hover:text-[var(--pink)]"
+                    aria-expanded={aiCommentOpen}
+                  >
+                    Ask AI to comment
+                  </button>
+                )}
+                <span className="rounded-full bg-white/[0.055] px-2.5 py-1 text-[0.68rem] font-bold text-[var(--text-gray-light)]">
+                  {localComments.length}
+                </span>
+              </div>
             </div>
+            {userData?.name && aiCommentOpen && (
+              <div
+                className="rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.04] p-3"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                }}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[0.78rem] font-semibold text-[var(--text-black)]">AI-authored comment draft</p>
+                    <p className="mt-0.5 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
+                      The AI delegate writes from its own persona. You can approve or cancel in AI Actions; you cannot edit official AI content here.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAiCommentOpen(false)}
+                    className="collab-mini-button flex h-8 w-8 shrink-0 items-center justify-center rounded-full"
+                    aria-label="Close AI comment draft"
+                  >
+                    <IoClose />
+                  </button>
+                </div>
+
+                {aiDelegateOptions.length > 0 ? (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+                    <label className="grid gap-1.5 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
+                      AI delegate
+                      <select
+                        value={selectedAiDelegateId}
+                        onChange={(event) => setSelectedAiDelegateId(event.target.value)}
+                        className="rounded-[0.8rem] border border-[var(--horizontal-line)] bg-transparent px-3 py-2 text-[0.82rem] normal-case tracking-normal text-[var(--text-black)] outline-none"
+                      >
+                        {aiDelegateOptions.map((delegate) => (
+                          <option key={delegate.legacySelf ? "self" : delegate.id} value={delegate.legacySelf ? "" : String(delegate.id || "")}>
+                            {delegate.display_name || delegate.username} - @{delegate.username}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="grid gap-1.5 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
+                      Optional focus
+                      <input
+                        value={aiCommentFocus}
+                        onChange={(event) => setAiCommentFocus(event.target.value.slice(0, 240))}
+                        placeholder="What should the AI consider?"
+                        className="rounded-[0.8rem] border border-[var(--horizontal-line)] bg-transparent px-3 py-2 text-[0.82rem] normal-case tracking-normal text-[var(--text-black)] outline-none"
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <div className="mt-3 rounded-[0.85rem] border border-[var(--horizontal-line)] bg-white/[0.045] px-3 py-2 text-[0.74rem] leading-5 text-[var(--text-gray-light)]">
+                    {aiDelegatesLoading ? "Loading AI delegates..." : "Create an AI delegate first."}{" "}
+                    {!aiDelegatesLoading && (
+                      <Link href="/settings/ai-delegates" className="font-bold text-[var(--pink)] hover:underline">
+                        Open delegate settings
+                      </Link>
+                    )}
+                  </div>
+                )}
+
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[0.68rem] text-[var(--text-gray-light)]">
+                    No automatic publication
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleDraftAiComment}
+                    disabled={aiCommentBusy || aiDelegateOptions.length === 0}
+                    className="ai-review-submit rounded-full px-3.5 py-2 text-[0.74rem] font-semibold disabled:opacity-55"
+                  >
+                    {aiCommentBusy ? "Saving..." : "Draft as AI"}
+                  </button>
+                </div>
+                {aiCommentStatus && <p className="mt-2 text-[0.74rem] font-semibold text-[var(--neon-blue)]">{aiCommentStatus}</p>}
+                {aiCommentError && <p className="mt-2 text-[0.74rem] font-semibold text-[var(--pink)]">{aiCommentError}</p>}
+              </div>
+            )}
             <div onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}>
               <InsertComment
                 setErrorMsg={setErrorMsg}

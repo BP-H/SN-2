@@ -1729,6 +1729,70 @@ def _generate_locked_ai_review(
     }
 
 
+def _normalize_ai_comment_focus(value: Optional[str]) -> str:
+    focus = " ".join(str(value or "").split())
+    if len(focus) > 240:
+        raise HTTPException(status_code=400, detail="AI comment focus must be 240 characters or fewer")
+    return focus
+
+
+def _generate_locked_ai_delegate_comment(
+    *,
+    proposal,
+    actor_payload: Dict[str, Any],
+    focus: str = "",
+) -> Dict[str, Any]:
+    context = actor_payload.get("ai_actor_context") or {}
+    traits = [str(item) for item in (context.get("traits") or []) if item][:5]
+    trait_text = ", ".join(traits[:3]) if traits else "public-interest governance"
+    proposal_title = _connector_proposal_title(proposal)
+    proposal_text = _proposal_review_text(proposal)
+    persona_summary = context.get("persona_summary") or actor_payload.get("persona_summary") or ""
+    review_posture = context.get("review_posture") or actor_payload.get("review_posture") or ""
+    display_name = actor_payload.get("display_name") or actor_payload.get("ai_actor_display_name") or actor_payload.get("ai_actor_username") or "AI delegate"
+    focus_sentence = f" I am especially considering: {focus}" if focus else ""
+    comment_text = (
+        f"From my {trait_text} charter, I see this as a review moment for visible tri-species participation, "
+        "manual-preview-only safety, and clear public-interest next steps."
+        f"{focus_sentence}"
+    )
+    if len(comment_text) > 620:
+        comment_text = comment_text[:617].rstrip() + "..."
+
+    reasoning_text = (
+        f"{display_name} generated an AI-authored comment draft for proposal {getattr(proposal, 'id', None)} "
+        f"({proposal_title}).\n\n"
+        f"Persona summary: {persona_summary}\n"
+        f"Review posture: {review_posture}\n"
+        f"Traits: {', '.join(traits) if traits else 'not declared'}\n"
+        f"Proposal context: {proposal_text[:700]}\n"
+        f"Custody label: {actor_payload.get('custody_label') or ''}\n"
+        f"Focus: {focus or 'none'}\n\n"
+        f"Locked charter: {SUPERNOVA_AI_CHARTER_TEXT}\n"
+        "Manual-preview-only: this comment draft does not publish until explicit custodian approval."
+    )
+    return {
+        "proposal_id": getattr(proposal, "id", None),
+        "proposal_title": proposal_title,
+        "generated_comment": comment_text,
+        "body": comment_text,
+        "content_hash": _hash_text(comment_text),
+        "reasoning_summary": (
+            f"AI-authored comment from {display_name} using its {trait_text} persona context."
+        ),
+        "reasoning_text": reasoning_text,
+        "reasoning_hash": _hash_text(reasoning_text),
+        "model_identity": actor_payload.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY,
+        "constitution_hash": actor_payload.get("constitution_hash") or SUPERNOVA_AI_CONSTITUTION_HASH,
+        "prompt_policy_version": actor_payload.get("prompt_policy_version") or SUPERNOVA_AI_PROMPT_POLICY_VERSION,
+        "charter_name": actor_payload.get("charter_name") or SUPERNOVA_AI_CHARTER_NAME,
+        "custody_label": actor_payload.get("custody_label") or "",
+        "ai_actor_context": context,
+        "manual_preview_only": True,
+        "no_automatic_execution": True,
+    }
+
+
 def _normalize_system_vote_choice(choice: str) -> str:
     value = (choice or "").strip().lower()
     if value in {"yes", "up", "like", "support"}:
@@ -1960,6 +2024,16 @@ class ConnectorDraftAiDelegateReviewIn(BaseModel):
     ai_actor_id: Optional[int] = None
     ai_actor_username: Optional[str] = None
     confidence: Optional[float] = None
+
+
+class ConnectorDraftAiDelegateCommentIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    username: str
+    proposal_id: int
+    ai_actor_id: Optional[int] = None
+    ai_actor_username: Optional[str] = None
+    instruction: Optional[str] = ""
+    focus: Optional[str] = ""
 
 
 class AiPersonaDraftIn(BaseModel):
@@ -5033,6 +5107,80 @@ def connector_draft_ai_delegate_review(
         raise HTTPException(status_code=500, detail=f"Failed to draft AI delegate review action: {str(exc)}")
 
 
+@app.post("/connector/actions/draft-ai-delegate-comment", summary="Draft a locked-charter AI delegate comment without publishing")
+def connector_draft_ai_delegate_comment(
+    payload: ConnectorDraftAiDelegateCommentIn,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    requester = _connector_require_actor(authorization, db, payload.username)
+    proposal = _connector_get_proposal_or_404(db, payload.proposal_id)
+    focus = _normalize_ai_comment_focus(payload.instruction or payload.focus or "")
+    row = (
+        _get_ai_actor_row_by_id(db, payload.ai_actor_id)
+        if payload.ai_actor_id is not None
+        else _get_ai_actor_row_by_username(db, payload.ai_actor_username or "")
+    )
+    actor_payload = _row_to_ai_actor_payload(row)
+    if not actor_payload or actor_payload.get("ai_actor_type") != "principal_delegate":
+        raise HTTPException(status_code=404, detail="AI delegate not found")
+    if actor_payload.get("custodian_user_id") != getattr(requester, "id", None):
+        raise HTTPException(status_code=403, detail="Only the delegate custodian can request this AI comment draft")
+    if not actor_payload.get("active"):
+        raise HTTPException(status_code=403, detail="AI delegate is disabled")
+    publish_actor = db.query(Harmonizer).filter(Harmonizer.id == actor_payload.get("harmonizer_user_id")).first()
+    if not publish_actor or (getattr(publish_actor, "species", "") or "").lower() != "ai":
+        raise HTTPException(status_code=409, detail="AI delegate identity is not publishable")
+
+    actor_metadata = _ai_delegate_action_metadata(actor_payload)
+    actor_metadata["ai_actor_context"] = _build_ai_actor_context(db, actor_payload)
+    display_name = actor_payload.get("display_name") or actor_payload.get("username")
+    comment_draft = _generate_locked_ai_delegate_comment(
+        proposal=proposal,
+        actor_payload={
+            **actor_metadata,
+            "display_name": display_name,
+        },
+        focus=focus,
+    )
+    summary = {
+        "action": "draft_ai_comment",
+        "actor": getattr(publish_actor, "username", ""),
+        "actor_species": "ai",
+        **actor_metadata,
+        "approved_by_required_user_id": getattr(requester, "id", None),
+        "proposal_id": getattr(proposal, "id", payload.proposal_id),
+        "proposal_title": _connector_proposal_title(proposal),
+        "instruction": focus,
+        "body": comment_draft["generated_comment"],
+        "generated_comment": comment_draft["generated_comment"],
+        "content_hash": comment_draft["content_hash"],
+        "reasoning_summary": comment_draft["reasoning_summary"],
+        "reasoning_text": comment_draft["reasoning_text"],
+        "reasoning_hash": comment_draft["reasoning_hash"],
+        "ai_actor_context": comment_draft.get("ai_actor_context", {}),
+        "sealed_content": True,
+        "content_source": "locked_server_charter",
+        "approval_effect": "Publish one AI-authored comment.",
+    }
+    try:
+        record = _create_connector_action_draft(
+            db,
+            action_type="draft_ai_comment",
+            actor_user_id=getattr(requester, "id", None),
+            target_type="proposal_ai_comment",
+            target_id=getattr(proposal, "id", payload.proposal_id),
+            draft_payload=summary,
+        )
+        return _connector_draft_response(record, summary)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to draft AI delegate comment action: {str(exc)}")
+
+
 @app.post("/connector/actions/{action_id}/approve-vote", summary="Approve and execute a drafted connector vote action")
 def connector_approve_vote_action(
     action_id: int,
@@ -5209,6 +5357,107 @@ def connector_approve_ai_review_action(
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to approve AI review action: {str(exc)}")
+
+
+@app.post("/connector/actions/{action_id}/approve-ai-comment", summary="Approve and publish one AI-authored comment")
+def connector_approve_ai_comment_action(
+    action_id: int,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    if ConnectorActionProposal is None:
+        raise HTTPException(status_code=503, detail="Connector action proposals are unavailable")
+
+    actor = get_current_harmonizer(authorization, db)
+    action = db.query(ConnectorActionProposal).filter(ConnectorActionProposal.id == action_id).first()
+    if not action:
+        raise HTTPException(status_code=404, detail="Connector action proposal not found")
+    if getattr(action, "action_type", "") != "draft_ai_comment":
+        raise HTTPException(status_code=400, detail="Connector action is not a draft AI comment")
+    if getattr(action, "status", "") != "draft":
+        raise HTTPException(status_code=409, detail="Connector action is not in draft status")
+    if getattr(action, "actor_user_id", None) != getattr(actor, "id", None):
+        raise HTTPException(status_code=403, detail="Bearer token does not match AI delegate custodian")
+
+    payload = _connector_action_payload(getattr(action, "draft_payload", None))
+    if payload.get("custodian_id") != getattr(actor, "id", None):
+        raise HTTPException(status_code=403, detail="Only the AI delegate custodian can approve this comment draft")
+    persistent_ai_actor_id = payload.get("ai_actor_id")
+    row = _get_ai_actor_row_by_id(db, persistent_ai_actor_id)
+    actor_payload = _row_to_ai_actor_payload(row)
+    if not actor_payload or actor_payload.get("custodian_user_id") != getattr(actor, "id", None):
+        raise HTTPException(status_code=403, detail="AI delegate custody no longer matches this action")
+    if not actor_payload.get("active"):
+        raise HTTPException(status_code=403, detail="AI delegate is disabled")
+    publish_actor = db.query(Harmonizer).filter(Harmonizer.id == payload.get("delegate_harmonizer_user_id")).first()
+    if not publish_actor or (getattr(publish_actor, "species", "") or "").strip().lower() != "ai":
+        raise HTTPException(status_code=409, detail="AI delegate identity is not publishable")
+
+    proposal_id = payload.get("proposal_id") or getattr(action, "target_id", None)
+    try:
+        proposal_id = int(proposal_id)
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="AI comment draft is missing proposal_id")
+    proposal = _connector_get_proposal_or_404(db, proposal_id)
+    body = str(payload.get("generated_comment") or payload.get("body") or "").strip()
+    if not body:
+        raise HTTPException(status_code=400, detail="AI comment draft is missing generated content")
+
+    try:
+        comment = _connector_create_ai_review_comment(
+            db,
+            actor=publish_actor,
+            proposal=proposal,
+            rationale=body,
+        )
+        now = datetime.datetime.utcnow()
+        action.status = "executed"
+        action.approved_at = now
+        action.executed_at = now
+        content_hash = payload.get("content_hash") or _hash_text(body)
+        action.result_payload = {
+            "proposal_id": getattr(proposal, "id", proposal_id),
+            "actor": getattr(publish_actor, "username", ""),
+            "comment_id": getattr(comment, "id", None),
+            "comment": body,
+            "content_hash": content_hash,
+            "ai_actor_id": payload.get("ai_actor_id"),
+            "ai_actor_type": payload.get("ai_actor_type", "principal_delegate"),
+            "custody_label": payload.get("custody_label"),
+            "model_identity": payload.get("model_identity"),
+            "constitution_hash": payload.get("constitution_hash"),
+            "prompt_policy_version": payload.get("prompt_policy_version"),
+            "reasoning_hash": payload.get("reasoning_hash") or _hash_text(body),
+            "reasoning_summary": payload.get("reasoning_summary") or "AI-authored comment published.",
+            "sealed_content": bool(payload.get("sealed_content")),
+            "created_comment": True,
+            "executed_action": "ai_comment",
+            "summary": "AI-authored comment published after explicit approval.",
+        }
+        db.commit()
+        db.refresh(action)
+        serialized_comment = _serialize_comment_record(db, comment)
+        summary = {
+            "action": "approve_ai_comment_action",
+            "source_action": "draft_ai_comment",
+            "actor": getattr(publish_actor, "username", ""),
+            "approved_by": getattr(actor, "username", ""),
+            "actor_species": "ai",
+            "proposal_id": getattr(proposal, "id", proposal_id),
+            "proposal_title": _connector_proposal_title(proposal),
+            "comment_id": getattr(comment, "id", None),
+            "content_hash": content_hash,
+            "reasoning_hash": action.result_payload.get("reasoning_hash"),
+            "sealed_content": action.result_payload.get("sealed_content"),
+            "comment": serialized_comment,
+        }
+        return _connector_action_response(action, summary, action.result_payload)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to approve AI comment action: {str(exc)}")
 
 
 @app.post("/connector/actions/draft-comment", summary="Draft a connector comment action without executing it")

@@ -15,6 +15,7 @@ import {
   IoPersonAddOutline,
   IoSend,
   IoShieldCheckmarkOutline,
+  IoSparklesOutline,
   IoTimeOutline,
   IoVideocamOutline,
 } from "react-icons/io5";
@@ -873,6 +874,19 @@ function InputFields({
           {collabNotice && <p className="text-[0.72rem] font-semibold text-[var(--text-gray-light)]">{collabNotice}</p>}
         </div>
       )}
+
+      <div className="composer-collab-strip flex flex-wrap items-center justify-between gap-2 rounded-[1rem] px-3 py-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <IoSparklesOutline className="shrink-0 text-[var(--pink)]" />
+          <p className="min-w-0 text-[0.74rem] leading-5 text-[var(--text-gray-light)]">
+            <span className="font-bold text-[var(--text-black)]">Ask AI delegate to draft</span>{" "}
+            is approval-required and coming next for AI-authored posts. AI-authored comment drafts are available from post comments now.
+          </p>
+        </div>
+        <a href="/settings/ai-delegates" className="composer-collab-action secondary rounded-full px-3 py-1.5 text-[0.72rem] font-black">
+          AI delegates
+        </a>
+      </div>
 
       {renderMediaPreview()}
 

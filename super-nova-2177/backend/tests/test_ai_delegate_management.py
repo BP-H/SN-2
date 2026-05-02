@@ -171,6 +171,8 @@ def action_rows():
     try:
         return [
             {
+                "id": row.id,
+                "action_type": row.action_type,
                 "status": row.status,
                 "actor_user_id": row.actor_user_id,
                 "draft_payload": row.draft_payload,
@@ -634,6 +636,124 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertEqual(result["ledger_ai_count"], 1)
         self.assertTrue(result["ledger_ai"][0]["reasoning_hash"])
         self.assertEqual(result["ledger_ai"][0]["custody_label"], "Delegate of @alice")
+
+    def test_ai_delegate_comment_draft_requires_approval_and_publishes_one_ai_comment(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            created = create_delegate(ai_name="Nova", traits=["Science", "Ethics"])
+            delegate = created.json()["delegate"]
+            malicious_body = client.post(
+                "/connector/actions/draft-ai-delegate-comment",
+                json={
+                    "username": "alice",
+                    "proposal_id": seeded["proposal_id"],
+                    "ai_actor_id": delegate["id"],
+                    "body": "human-submitted official AI text",
+                },
+                headers=alice_headers,
+            )
+            wrong_user = client.post(
+                "/connector/actions/draft-ai-delegate-comment",
+                json={"username": "bob", "proposal_id": seeded["proposal_id"], "ai_actor_id": delegate["id"]},
+                headers=bob_headers,
+            )
+            disabled = client.patch(
+                f"/ai/delegates/{delegate['id']}",
+                json={"active": False, "disable_reason": "Pause comment drafting for review."},
+                headers=alice_headers,
+            )
+            disabled_draft = client.post(
+                "/connector/actions/draft-ai-delegate-comment",
+                json={"username": "alice", "proposal_id": seeded["proposal_id"], "ai_actor_id": delegate["id"]},
+                headers=alice_headers,
+            )
+            enabled = client.patch(f"/ai/delegates/{delegate['id']}", json={"active": True}, headers=alice_headers)
+            cancel_draft = client.post(
+                "/connector/actions/draft-ai-delegate-comment",
+                json={
+                    "username": "alice",
+                    "proposal_id": seeded["proposal_id"],
+                    "ai_actor_id": delegate["id"],
+                    "instruction": "Notice public-interest tradeoffs.",
+                },
+                headers=alice_headers,
+            )
+            cancel_id = cancel_draft.json()["action_proposal"]["id"]
+            canceled = client.post(f"/connector/actions/{cancel_id}/cancel", headers=alice_headers)
+            after_cancel = counts()
+            draft = client.post(
+                "/connector/actions/draft-ai-delegate-comment",
+                json={
+                    "username": "alice",
+                    "proposal_id": seeded["proposal_id"],
+                    "ai_actor_id": delegate["id"],
+                    "focus": "Comment on manual-preview-only safety.",
+                },
+                headers=alice_headers,
+            )
+            action_id = draft.json()["action_proposal"]["id"]
+            inbox = client.get("/connector/actions", headers=alice_headers)
+            wrong_approve = client.post(f"/connector/actions/{action_id}/approve-ai-comment", headers=bob_headers)
+            approve = client.post(f"/connector/actions/{action_id}/approve-ai-comment", headers=alice_headers)
+            repeat = client.post(f"/connector/actions/{action_id}/approve-ai-comment", headers=alice_headers)
+            after_approve = counts()
+            result = {
+                "malicious_body_status": malicious_body.status_code,
+                "wrong_user_status": wrong_user.status_code,
+                "disabled_status": disabled.status_code,
+                "disabled_draft_status": disabled_draft.status_code,
+                "enabled_status": enabled.status_code,
+                "cancel_draft_status": cancel_draft.status_code,
+                "canceled_status": canceled.status_code,
+                "after_cancel": after_cancel,
+                "draft_status": draft.status_code,
+                "draft_summary": draft.json().get("summary"),
+                "inbox_actions": inbox.json().get("actions"),
+                "wrong_approve_status": wrong_approve.status_code,
+                "approve_status": approve.status_code,
+                "repeat_status": repeat.status_code,
+                "approve_result": approve.json().get("result"),
+                "approve_summary": approve.json().get("summary"),
+                "after_approve": after_approve,
+                "actions": action_rows(),
+            }
+            print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_delegate_probe(probe)
+
+        self.assertEqual(result["malicious_body_status"], 422)
+        self.assertEqual(result["wrong_user_status"], 403)
+        self.assertEqual(result["disabled_status"], 200)
+        self.assertEqual(result["disabled_draft_status"], 403)
+        self.assertEqual(result["enabled_status"], 200)
+        self.assertEqual(result["cancel_draft_status"], 200)
+        self.assertEqual(result["canceled_status"], 200)
+        self.assertEqual(result["after_cancel"]["comments"], 0)
+        self.assertEqual(result["draft_status"], 200)
+        self.assertEqual(result["draft_summary"]["action"], "draft_ai_comment")
+        self.assertEqual(result["draft_summary"]["ai_actor_id"], result["actions"][1]["draft_payload"]["ai_actor_id"])
+        self.assertEqual(result["draft_summary"]["sealed_content"], True)
+        self.assertTrue(result["draft_summary"]["content_hash"])
+        self.assertTrue(result["draft_summary"]["reasoning_hash"])
+        self.assertIn("Science", result["draft_summary"]["ai_actor_context"]["traits"])
+        self.assertTrue(result["draft_summary"]["ai_actor_context"]["persona_summary"])
+        self.assertEqual(
+            result["draft_summary"]["ai_actor_context"]["autonomy_preferences"]["posts"],
+            "draft_only_deferred",
+        )
+        self.assertEqual(result["inbox_actions"][0]["action_type"], "draft_ai_comment")
+        self.assertEqual(result["wrong_approve_status"], 403)
+        self.assertEqual(result["approve_status"], 200, result)
+        self.assertEqual(result["repeat_status"], 409)
+        self.assertEqual(result["after_approve"]["votes"], 0)
+        self.assertEqual(result["after_approve"]["comments"], 1)
+        self.assertEqual(result["approve_result"]["executed_action"], "ai_comment")
+        self.assertEqual(result["approve_result"]["ai_actor_type"], "principal_delegate")
+        self.assertEqual(result["approve_result"]["sealed_content"], True)
+        self.assertTrue(result["approve_summary"]["comment"]["user"].startswith("alice-nova"))
+        self.assertEqual(result["approve_summary"]["comment"]["species"], "ai")
 
 
 if __name__ == "__main__":
