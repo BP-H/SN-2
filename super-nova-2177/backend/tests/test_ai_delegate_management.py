@@ -297,6 +297,20 @@ class AiDelegateManagementTests(unittest.TestCase):
                 },
                 headers=alice_headers,
             )
+            slash_draft = client.post(
+                "/ai/delegates/persona-draft",
+                json={"ai_name": "aaa/aaaa", "traits": ["Art"], "human_seed": "Slash input should not become a raw handle."},
+                headers=alice_headers,
+            )
+            slash_created = client.post(
+                "/ai/delegates",
+                json={
+                    "ai_name": "aaa/aaaa",
+                    "persona_traits": ["Art"],
+                    "persona_draft": slash_draft.json().get("persona"),
+                },
+                headers=alice_headers,
+            )
             profile = client.get(f"/ai-actors/{created.json().get('delegate', {}).get('username')}")
             result = {
                 "no_traits_status": no_traits.status_code,
@@ -306,6 +320,10 @@ class AiDelegateManagementTests(unittest.TestCase):
                 "persona": valid.json().get("persona"),
                 "created_status": created.status_code,
                 "delegate": created.json().get("delegate"),
+                "slash_draft_status": slash_draft.status_code,
+                "slash_persona": slash_draft.json().get("persona"),
+                "slash_created_status": slash_created.status_code,
+                "slash_delegate": slash_created.json().get("delegate"),
                 "profile": profile.json().get("actor"),
             }
             print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
@@ -326,6 +344,28 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertTrue(result["delegate"]["persona_hash"])
         self.assertEqual(result["delegate"]["approved_by_custodian_user_id"], result["delegate"]["custodian_user_id"])
         self.assertEqual(result["profile"]["profile_tagline"], result["delegate"]["profile_tagline"])
+        self.assertEqual(result["slash_draft_status"], 200)
+        self.assertEqual(result["slash_created_status"], 200)
+        self.assertNotIn("/", result["slash_persona"]["username"])
+        self.assertNotIn("/", result["slash_delegate"]["username"])
+        self.assertTrue(result["slash_delegate"]["username"].startswith("alice-aaa-aaaa"))
+
+    def test_ai_genesis_page_uses_call_sign_flow_not_account_form_labels(self):
+        page = (PROJECT_ROOT / "frontend-social-seven" / "app" / "settings" / "ai-delegates" / "page.jsx").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("AI Genesis", page)
+        self.assertIn("AI name / call-sign", page)
+        self.assertIn("Search traits", page)
+        self.assertIn("Generate persona", page)
+        self.assertIn("Approve and create", page)
+        self.assertNotIn("USERNAME", page)
+        self.assertNotIn("DISPLAY NAME", page)
+        self.assertNotIn("PUBLIC DESCRIPTION", page)
+        self.assertNotIn('updateForm("username"', page)
+        self.assertNotIn('updateForm("display_name"', page)
+        self.assertNotIn('updateForm("public_description"', page)
 
     def test_persona_hash_includes_future_independence_and_custody_status(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
@@ -512,10 +552,12 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertEqual(result["after_valid"]["votes"], 0)
         self.assertEqual(result["after_valid"]["comments"], 0)
         self.assertEqual(result["summary"]["ai_actor_id"], result["actions"][0]["draft_payload"]["ai_actor_id"])
+        self.assertEqual(result["summary"]["ai_actor_display_name"], result["actions"][0]["draft_payload"]["ai_actor_display_name"])
         self.assertEqual(result["summary"]["custodian_id"], result["actions"][0]["draft_payload"]["custodian_id"])
         self.assertEqual(result["summary"]["sealed_reasoning"], True)
         self.assertTrue(result["summary"]["reasoning_hash"])
         self.assertTrue(result["summary"]["constitution_hash"])
+        self.assertEqual(result["summary"]["model_identity"], "delegate-policy-v1")
         self.assertIn("Science", result["summary"]["ai_actor_context"]["traits"])
         self.assertTrue(result["summary"]["ai_actor_context"]["persona_summary"])
         self.assertEqual(result["summary"]["ai_actor_context"]["independence_migration_status"], "not_eligible")

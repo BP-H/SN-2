@@ -1375,6 +1375,7 @@ def _ai_delegate_action_metadata(actor_payload: Dict[str, Any]) -> Dict[str, Any
     return {
         "ai_actor_id": actor_payload.get("id"),
         "ai_actor_username": actor_payload.get("username"),
+        "ai_actor_display_name": actor_payload.get("display_name") or actor_payload.get("ai_name") or "",
         "ai_actor_type": actor_payload.get("ai_actor_type", "principal_delegate"),
         "species": "ai",
         "custodian_id": actor_payload.get("custodian_user_id"),
@@ -1407,6 +1408,7 @@ def _ai_delegate_actor_metadata(actor) -> Dict[str, Any]:
     return {
         "ai_actor_id": getattr(actor, "id", None),
         "ai_actor_username": username,
+        "ai_actor_display_name": getattr(actor, "display_name", None) or username,
         "ai_actor_type": "principal_delegate",
         "species": "ai",
         "custodian_id": None,

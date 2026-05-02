@@ -1453,7 +1453,7 @@ function ProposalCard({
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-[0.78rem] font-semibold text-[var(--text-black)]">Ask AI delegate</p>
+                <p className="text-[0.78rem] font-semibold text-[var(--text-black)]">Ask AI</p>
                 <p className="mt-0.5 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
                   The server generates vote intent and reasoning from a locked charter. Approve in AI Actions to publish one AI vote and one rationale comment.
                 </p>
@@ -1470,7 +1470,7 @@ function ProposalCard({
 
             {aiDelegateOptions.length > 0 ? (
               <label className="mt-3 grid gap-1.5 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
-                Delegate
+                AI delegate
                 <select
                   value={selectedAiDelegateId}
                   onChange={(event) => setSelectedAiDelegateId(event.target.value)}

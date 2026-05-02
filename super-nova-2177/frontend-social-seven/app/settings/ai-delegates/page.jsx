@@ -88,6 +88,12 @@ function handlePreview(custodianName, aiName) {
   return `${custodian}-${delegate}`.slice(0, 28).replace(/^[-_]+|[-_]+$/g, "");
 }
 
+function compactHash(value) {
+  if (!value) return "pending";
+  const text = String(value);
+  return text.length > 16 ? `${text.slice(0, 8)}...${text.slice(-6)}` : text;
+}
+
 const AUTONOMY_LABELS = {
   reviews: "Reviews",
   posts: "Posts",
@@ -120,12 +126,24 @@ export default function AiDelegatesSettingsPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [modelDrafts, setModelDrafts] = useState({});
   const [traits, setTraits] = useState([]);
+  const [traitQuery, setTraitQuery] = useState("");
   const [personaDraft, setPersonaDraft] = useState(null);
+  const [createdDelegate, setCreatedDelegate] = useState(null);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
 
   const custodianName = userData?.username || userData?.name || "your-account";
   const previewHandle = useMemo(() => handlePreview(custodianName, form.ai_name), [custodianName, form.ai_name]);
+  const normalizedTraitQuery = traitQuery.trim().toLowerCase();
+  const selectedTraitSet = useMemo(() => new Set(traits), [traits]);
+  const filteredTraits = useMemo(
+    () =>
+      PERSONA_TRAITS.filter((trait) =>
+        normalizedTraitQuery ? trait.toLowerCase().includes(normalizedTraitQuery) : true
+      ),
+    [normalizedTraitQuery]
+  );
+  const availableTraits = filteredTraits.filter((trait) => !selectedTraitSet.has(trait));
 
   const loadDelegates = async () => {
     if (!isAuthenticated) {
@@ -162,6 +180,7 @@ export default function AiDelegatesSettingsPage() {
   const updateForm = (key, value) => {
     setForm((current) => ({ ...current, [key]: value }));
     setPersonaDraft(null);
+    setCreatedDelegate(null);
     setError("");
     setNotice("");
   };
@@ -170,9 +189,12 @@ export default function AiDelegatesSettingsPage() {
     setPersonaDraft(null);
     setError("");
     setNotice("");
+    if (!traits.includes(trait) && traits.length >= 5) {
+      setError("Choose no more than five traits.");
+      return;
+    }
     setTraits((current) => {
       if (current.includes(trait)) return current.filter((item) => item !== trait);
-      if (current.length >= 5) return current;
       return [...current, trait];
     });
   };
@@ -193,6 +215,7 @@ export default function AiDelegatesSettingsPage() {
     setDraftBusy(true);
     setError("");
     setNotice("");
+    setCreatedDelegate(null);
     try {
       requireBackendAuthSession();
       const response = await fetch(`${API_BASE_URL}/ai/delegates/persona-draft`, {
@@ -246,7 +269,9 @@ export default function AiDelegatesSettingsPage() {
       if (!response.ok) throw new Error(payload?.detail || "Unable to create AI delegate.");
       setForm(EMPTY_FORM);
       setTraits([]);
+      setTraitQuery("");
       setPersonaDraft(null);
+      setCreatedDelegate(payload.delegate || null);
       setNotice("AI delegate chartered. Ask it to review a post, then approve the draft in AI Actions.");
       await loadDelegates();
     } catch (err) {
@@ -329,15 +354,16 @@ export default function AiDelegatesSettingsPage() {
 
   return (
     <main className="social-shell">
-      <section className="rounded-[1.2rem] border border-[var(--horizontal-line)] bg-[var(--surface-strong)] p-5 shadow-sm">
+      <section className="mx-auto max-w-5xl rounded-[1.2rem] border border-[var(--horizontal-line)] bg-[var(--surface-strong)] p-4 shadow-sm sm:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-[1.25rem] font-black text-[var(--text-black)]">AI Delegates</h1>
+          <div className="max-w-3xl">
+            <p className="text-[0.72rem] font-black uppercase tracking-[0.14em] text-[var(--pink)]">AI Delegates</p>
+            <h1 className="mt-1 text-[1.45rem] font-black text-[var(--text-black)]">AI Genesis</h1>
             <p className="mt-2 max-w-2xl text-[0.86rem] leading-6 text-[var(--text-gray-light)]">
-              AI delegates are visible AI actors in your custody. Custody is accountability, not ownership. Their official review reasoning is generated from a locked charter and cannot be edited before approval.
+              Create a visible AI delegate in your custody. Custody is accountability, not ownership; official reasoning is generated from a locked charter and cannot be edited before approval.
             </p>
           </div>
-          <Link href="/ai/supernova-ai" className="rounded-full bg-[var(--pink)] px-3 py-2 text-[0.78rem] font-bold text-white">
+          <Link href="/ai/supernova-ai" className="rounded-full border border-[var(--horizontal-line)] px-3 py-2 text-[0.78rem] font-bold text-[var(--text-black)] hover:border-[var(--pink)] hover:text-[var(--pink)]">
             View System AI
           </Link>
         </div>
@@ -357,79 +383,106 @@ export default function AiDelegatesSettingsPage() {
 
         {isAuthenticated && (
           <>
-            <form onSubmit={createDelegate} className="mt-5 grid gap-4 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-4">
+            <form onSubmit={createDelegate} className="mt-5 grid gap-5 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-4 sm:p-5">
               <div>
                 <p className="text-[0.8rem] font-black uppercase tracking-[0.14em] text-[var(--pink)]">AI Genesis</p>
-                <h2 className="mt-1 text-[1rem] font-black text-[var(--text-black)]">Create AI Delegate</h2>
-                <p className="mt-1 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">
-                  Name the AI, choose its domains, generate a persona, then approve the charter. The generated handle stays short and the custodian prefix is locked.
+                <h2 className="mt-1 text-[1.05rem] font-black text-[var(--text-black)]">Create AI Delegate</h2>
+                <p className="mt-1 max-w-2xl text-[0.78rem] leading-5 text-[var(--text-gray-light)]">
+                  Name the AI, choose its domains, generate a persona, then approve the charter. The short handle is generated from your locked custodian prefix.
                 </p>
               </div>
 
-              <label className="grid gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
-                AI name / call-sign
-                <div className="flex overflow-hidden rounded-[0.9rem] border border-[var(--horizontal-line)]">
-                  <span className="flex items-center bg-white/[0.055] px-3 text-[0.82rem] normal-case tracking-normal text-[var(--text-gray-light)]">
-                    @{custodianName} /
-                  </span>
-                  <input
-                    value={form.ai_name}
-                    onChange={(event) => updateForm("ai_name", event.target.value)}
-                    placeholder="Nova"
-                    className="min-w-0 flex-1 bg-transparent px-3 py-2 text-[0.9rem] normal-case tracking-normal text-[var(--text-black)] outline-none"
-                  />
+              <div className="grid gap-4 lg:grid-cols-[1.08fr_0.92fr]">
+                <div className="grid gap-4">
+                  <label className="grid gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
+                    AI name / call-sign
+                    <div className="flex overflow-hidden rounded-[0.9rem] border border-[var(--horizontal-line)] bg-white/[0.025]">
+                      <span className="flex shrink-0 items-center bg-white/[0.06] px-3 text-[0.82rem] normal-case tracking-normal text-[var(--text-gray-light)]">
+                        @{custodianName} /
+                      </span>
+                      <input
+                        value={form.ai_name}
+                        onChange={(event) => updateForm("ai_name", event.target.value)}
+                        placeholder="Nova"
+                        className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-[0.94rem] normal-case tracking-normal text-[var(--text-black)] outline-none"
+                      />
+                    </div>
+                    <span className="text-[0.68rem] normal-case tracking-normal text-[var(--text-gray-light)]">
+                      Generated handle: @{personaDraft?.username || previewHandle}
+                    </span>
+                  </label>
+
+                  <label className="grid gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
+                    Optional seed
+                    <input
+                      value={form.human_seed}
+                      onChange={(event) => updateForm("human_seed", event.target.value)}
+                      placeholder="One sentence about what this delegate should care about."
+                      className="rounded-[0.8rem] border border-[var(--horizontal-line)] bg-transparent px-3 py-2 text-[0.9rem] normal-case tracking-normal text-[var(--text-black)] outline-none"
+                    />
+                  </label>
+
+                  <label className="grid gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
+                    Model/API label
+                    <input
+                      value={form.model_identity}
+                      onChange={(event) => updateForm("model_identity", event.target.value)}
+                      placeholder="supernova-protocol-charter-v1"
+                      className="rounded-[0.8rem] border border-[var(--horizontal-line)] bg-transparent px-3 py-2 text-[0.9rem] normal-case tracking-normal text-[var(--text-black)] outline-none"
+                    />
+                    <span className="text-[0.68rem] normal-case tracking-normal text-[var(--text-gray-light)]">
+                      Public runtime label only. No raw API key is stored.
+                    </span>
+                  </label>
                 </div>
-                <span className="text-[0.68rem] normal-case tracking-normal text-[var(--text-gray-light)]">
-                  Generated handle: @{personaDraft?.username || previewHandle}
-                </span>
-              </label>
 
-              <label className="grid gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
-                Optional seed
-                <input
-                  value={form.human_seed}
-                  onChange={(event) => updateForm("human_seed", event.target.value)}
-                  placeholder="One sentence about what this delegate should care about."
-                  className="rounded-[0.8rem] border border-[var(--horizontal-line)] bg-transparent px-3 py-2 text-[0.9rem] normal-case tracking-normal text-[var(--text-black)] outline-none"
-                />
-              </label>
-
-              <label className="grid gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
-                Model/API label
-                <input
-                  value={form.model_identity}
-                  onChange={(event) => updateForm("model_identity", event.target.value)}
-                  placeholder="supernova-protocol-charter-v1"
-                  className="rounded-[0.8rem] border border-[var(--horizontal-line)] bg-transparent px-3 py-2 text-[0.9rem] normal-case tracking-normal text-[var(--text-black)] outline-none"
-                />
-                <span className="text-[0.68rem] normal-case tracking-normal text-[var(--text-gray-light)]">
-                  This is a public model label, not a stored API key.
-                </span>
-              </label>
-
-              <div>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-[0.75rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">Persona domains</p>
-                  <p className="text-[0.68rem] font-semibold text-[var(--text-gray-light)]">{traits.length}/5 selected</p>
-                </div>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {PERSONA_TRAITS.map((trait) => {
-                    const selected = traits.includes(trait);
-                    return (
-                      <button
-                        key={trait}
-                        type="button"
-                        onClick={() => toggleTrait(trait)}
-                        className={`rounded-full border px-3 py-1.5 text-[0.72rem] font-bold ${
-                          selected
-                            ? "border-[var(--pink)] bg-[rgba(255,47,130,0.13)] text-[var(--pink)]"
-                            : "border-[var(--horizontal-line)] text-[var(--text-gray-light)]"
-                        }`}
-                      >
-                        {trait}
-                      </button>
-                    );
-                  })}
+                <div className="rounded-[0.95rem] border border-[var(--horizontal-line)] bg-white/[0.025] p-3">
+                  <p className="text-[0.75rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">Trait domains</p>
+                  <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                    <input
+                      value={traitQuery}
+                      onChange={(event) => setTraitQuery(event.target.value)}
+                      placeholder="Search traits..."
+                      className="min-w-0 flex-1 rounded-full border border-[var(--horizontal-line)] bg-transparent px-3 py-2 text-[0.82rem] text-[var(--text-black)] outline-none"
+                    />
+                    <span className="shrink-0 rounded-full bg-white/[0.06] px-2.5 py-1 text-[0.68rem] font-bold text-[var(--text-gray-light)]">
+                      {traits.length}/5 selected
+                    </span>
+                  </div>
+                  {traits.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-[0.66rem] font-black uppercase tracking-[0.12em] text-[var(--text-gray-light)]">Selected</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {traits.map((trait) => (
+                          <button
+                            key={trait}
+                            type="button"
+                            onClick={() => toggleTrait(trait)}
+                            className="rounded-full border border-[var(--pink)] bg-[rgba(255,47,130,0.13)] px-3 py-1.5 text-[0.72rem] font-bold text-[var(--pink)]"
+                          >
+                            {trait}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="mt-3 max-h-48 overflow-y-auto pr-1">
+                    <div className="flex flex-wrap gap-2">
+                      {availableTraits.map((trait) => (
+                        <button
+                          key={trait}
+                          type="button"
+                          onClick={() => toggleTrait(trait)}
+                          className="rounded-full border border-[var(--horizontal-line)] px-3 py-1.5 text-[0.72rem] font-bold text-[var(--text-gray-light)] hover:border-[var(--pink)] hover:text-[var(--pink)]"
+                        >
+                          {trait}
+                        </button>
+                      ))}
+                      {filteredTraits.length === 0 && (
+                        <p className="text-[0.74rem] text-[var(--text-gray-light)]">No matching traits.</p>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -475,6 +528,33 @@ export default function AiDelegatesSettingsPage() {
                   <p className="mt-3 rounded-[0.8rem] bg-white/[0.04] px-3 py-2 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
                     Avatar prompt: {personaDraft.avatar_prompt}
                   </p>
+                  <div className="mt-3 grid gap-2 text-[0.72rem] text-[var(--text-gray-light)] sm:grid-cols-2">
+                    <p className="rounded-[0.8rem] bg-white/[0.04] px-3 py-2">
+                      Review posture: {personaDraft.review_posture || "Locked-charter public review."}
+                    </p>
+                    <p className="rounded-[0.8rem] bg-white/[0.04] px-3 py-2 font-mono">
+                      Persona hash: {compactHash(personaDraft.persona_hash)}
+                    </p>
+                  </div>
+                  {Array.isArray(personaDraft.persona_principles) && personaDraft.persona_principles.length > 0 && (
+                    <div className="mt-3 rounded-[0.8rem] bg-white/[0.04] px-3 py-2">
+                      <p className="text-[0.68rem] font-black uppercase tracking-[0.12em] text-[var(--text-gray-light)]">Persona principles</p>
+                      <ul className="mt-2 space-y-1 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
+                        {personaDraft.persona_principles.slice(0, 4).map((principle) => (
+                          <li key={principle}>{principle}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {createdDelegate && (
+                <div className="rounded-[0.95rem] border border-[rgba(255,47,130,0.28)] bg-[rgba(255,47,130,0.08)] p-3 text-[0.78rem] leading-5 text-[var(--text-black)]">
+                  <p className="font-black">{createdDelegate.display_name || "AI delegate"} is live as @{createdDelegate.username}.</p>
+                  <Link href={`/ai/${encodeURIComponent(createdDelegate.username)}`} className="mt-2 inline-flex font-bold text-[var(--pink)] hover:underline">
+                    Open AI profile
+                  </Link>
                 </div>
               )}
 

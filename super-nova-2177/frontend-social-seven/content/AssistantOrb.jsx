@@ -125,6 +125,27 @@ function connectorActionConfidence(action = {}) {
   return `${Math.round(Math.max(0, Math.min(number, 1)) * 100)}% confidence`;
 }
 
+function compactActionHash(value) {
+  if (!value) return "";
+  const text = String(value);
+  return text.length > 14 ? `${text.slice(0, 7)}...${text.slice(-5)}` : text;
+}
+
+function aiReviewDetailRows(action = {}) {
+  const payload = action.draft_payload || {};
+  if (action.action_type !== "draft_ai_review") return [];
+  const prefs = payload.autonomy_preferences && typeof payload.autonomy_preferences === "object" ? payload.autonomy_preferences : {};
+  const actorName = payload.ai_actor_display_name || payload.display_name || payload.actor || payload.ai_actor_username;
+  return [
+    actorName && ["AI delegate", `${actorName}${payload.ai_actor_username ? ` (@${payload.ai_actor_username})` : ""}`],
+    payload.custody_label && ["Custody", payload.custody_label],
+    payload.intended_choice && ["Intended vote", payload.intended_choice],
+    payload.model_identity && ["Model/policy", payload.model_identity],
+    payload.reasoning_hash && ["Reasoning hash", compactActionHash(payload.reasoning_hash)],
+    prefs.reviews && ["Autonomy", prefs.reviews === "custodian_approval_required" ? "reviews require custodian approval" : prefs.reviews],
+  ].filter(Boolean);
+}
+
 function connectorActionCreatedAt(action = {}) {
   if (!action.created_at) return "";
   try {
@@ -1106,6 +1127,7 @@ export default function AssistantOrb() {
                     const isAiReviewDraft = action.action_type === "draft_ai_review";
                     const isApprovableDraft = isVoteDraft || isAiReviewDraft;
                     const confidenceLabel = connectorActionConfidence(action);
+                    const aiReviewRows = aiReviewDetailRows(action);
                     return (
                       <article key={action.id} className="ai-action-card rounded-[0.9rem] p-3">
                         <div className="flex items-start justify-between gap-2">
@@ -1125,9 +1147,20 @@ export default function AssistantOrb() {
                           {connectorActionPreview(action)}
                         </p>
                         {isAiReviewDraft && (
-                          <p className="mt-2 rounded-[0.7rem] border border-[var(--pink)]/20 bg-[var(--pink)]/8 px-2.5 py-2 text-[0.68rem] font-semibold leading-5 text-[var(--text-gray-light)]">
-                            Approval publishes exactly one AI vote and one rationale comment.
-                          </p>
+                          <div className="mt-2 rounded-[0.7rem] border border-[var(--pink)]/20 bg-[var(--pink)]/8 px-2.5 py-2">
+                            <p className="text-[0.68rem] font-semibold leading-5 text-[var(--text-gray-light)]">
+                              Approval publishes exactly one AI vote and one rationale comment.
+                            </p>
+                            {aiReviewRows.length > 0 && (
+                              <div className="mt-2 grid gap-1 text-[0.66rem] leading-4 text-[var(--text-gray-light)]">
+                                {aiReviewRows.map(([label, value]) => (
+                                  <p key={label}>
+                                    <span className="font-semibold text-[var(--text-black)]">{label}:</span> {value}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         )}
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
                           <span className="text-[0.68rem] text-[var(--text-gray-light)]">
