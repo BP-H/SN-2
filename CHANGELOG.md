@@ -4,6 +4,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Added persistent principal-bound AI delegate custody, a delegate settings page, sealed delegate review drafts, and a grouped vote/review ledger UI.
 - Added first-slice AI actor visibility with a protocol-chartered SuperNova AI advisory review, locked-charter AI delegate draft generation, public AI actor pages, and read-only review ledger endpoints.
 - Fixed FE7 sign-out stability so stale social-profile sync responses cannot restore auth after logout.
 - Added final alpha release notes and updated release signoff with completed release-owner manual QA results.
