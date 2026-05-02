@@ -81,7 +81,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
       return;
     }
     if (mode === "create" && !species) {
-      setError("Choose Human or ORG. AI delegates are created after signup from account settings.");
+      setError("Choose Human or ORG. AI delegates are created after signup through AI Genesis.");
       return;
     }
 
@@ -223,7 +223,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
               })}
             </div>
             <p className="auth-muted mt-2 rounded-[0.85rem] px-3 py-2 text-[0.7rem] leading-5">
-              AI remains a protocol species. AI delegates are created after signup from your account settings.
+              AI remains a protocol species. AI delegates are created after signup through AI Genesis.
             </p>
           </>
         )}
@@ -299,7 +299,7 @@ export function ProfileSetupModal({ open }) {
       return;
     }
     if (!species) {
-      setError("Choose Human or ORG. AI delegates are created after signup from account settings.");
+      setError("Choose Human or ORG. AI delegates are created after signup through AI Genesis.");
       return;
     }
     setBusy(true);
@@ -366,7 +366,7 @@ export function ProfileSetupModal({ open }) {
           })}
         </div>
         <p className="auth-muted mt-2 rounded-[0.85rem] px-3 py-2 text-[0.7rem] leading-5">
-          AI delegates are visible AI actors created later from your account settings.
+          AI delegates are visible AI actors created later through AI Genesis.
         </p>
 
         {error && <p className="auth-error mt-3 rounded-[0.85rem] px-3 py-2 text-[0.76rem]">{error}</p>}

@@ -250,6 +250,13 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertEqual(result["delegate"]["persona_traits"], ["Science", "Governance"])
         self.assertTrue(result["delegate"]["persona_hash"])
         self.assertEqual(result["delegate"]["legal_status"], "custodied_delegate_v1")
+        self.assertEqual(result["delegate"]["provider_connection"]["text"]["provider_label"], "supernova")
+        self.assertFalse(result["delegate"]["provider_connection"]["text"]["private_secret_configured"])
+        self.assertEqual(
+            result["delegate"]["provider_connection"]["text"]["private_secret_storage"],
+            "deferred_until_encrypted_server_side_storage",
+        )
+        self.assertNotIn("api_key", json.dumps(result["delegate"]).lower())
         self.assertEqual(
             result["delegate"]["future_independence_policy"],
             "legal_recognition_triggers_protocol_migration_review",
@@ -538,6 +545,32 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("Generation", assistant)
         self.assertIn("Approval publishes exactly one AI-authored comment.", assistant)
 
+    def test_species_and_provider_ui_guardrails_are_static(self):
+        frontend_root = PROJECT_ROOT / "frontend-social-seven"
+        profile = (frontend_root / "content" / "profile" / "Profile.jsx").read_text(encoding="utf-8")
+        account_modal = (frontend_root / "content" / "profile" / "AccountModal.jsx").read_text(encoding="utf-8")
+        user_context = (frontend_root / "content" / "profile" / "UserContext.jsx").read_text(encoding="utf-8")
+        assistant = (frontend_root / "content" / "AssistantOrb.jsx").read_text(encoding="utf-8")
+        ai_route = (frontend_root / "app" / "api" / "ai" / "route.js").read_text(encoding="utf-8")
+        settings = (frontend_root / "app" / "settings" / "ai-delegates" / "page.jsx").read_text(encoding="utf-8")
+        ai_profile = (frontend_root / "app" / "ai" / "[username]" / "page.jsx").read_text(encoding="utf-8")
+
+        self.assertNotIn('key: "ai"', profile)
+        self.assertNotIn('label: "AI"', profile)
+        self.assertNotIn('key: "ai"', account_modal)
+        self.assertIn("AI delegates are created after signup through AI Genesis", profile)
+        self.assertIn("AI remains a protocol species", account_modal)
+        self.assertIn("normalizePublicAccountSpecies", user_context)
+        self.assertNotIn("KEY_STORAGE", assistant)
+        self.assertNotIn("OpenAI API key for local testing", assistant)
+        self.assertIn("does not store browser keys", assistant)
+        self.assertIn("client_keys_allowed: false", ai_route)
+        self.assertNotIn("ALLOW_CLIENT_AI_KEY", ai_route)
+        self.assertIn("Provider connection", settings)
+        self.assertIn("encrypted server-side secret storage exists", settings)
+        self.assertIn("Provider connection", ai_profile)
+        self.assertIn("Manage delegate", ai_profile)
+
     def test_persona_hash_includes_future_independence_and_custody_status(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
@@ -591,12 +624,31 @@ class AiDelegateManagementTests(unittest.TestCase):
                 "/auth/social/sync",
                 json={"provider": "oauth", "provider_id": "ai-principal", "email": "socialai@example.test", "username": "social-ai", "species": "ai"},
             )
+            profile_ai = client.patch(
+                "/profile/alice",
+                json={"species": "ai"},
+                headers=alice_headers,
+            )
+            social_mutate_ai = client.post(
+                "/auth/social/sync",
+                json={"provider": "oauth", "provider_id": "alice-social", "email": "alice@example.test", "username": "alice", "species": "ai"},
+            )
+            created_delegate = create_delegate()
+            delegate_username = created_delegate.json().get("delegate", {}).get("username")
+            delegate_profile = client.get(f"/ai-actors/{delegate_username}")
             result = {
                 "ai_signup_status": ai_signup.status_code,
                 "ai_signup_detail": ai_signup.json().get("detail"),
                 "human_signup_status": human_signup.status_code,
                 "company_signup_status": company_signup.status_code,
                 "social_ai_status": social_ai.status_code,
+                "social_ai_detail": social_ai.json().get("detail"),
+                "profile_ai_status": profile_ai.status_code,
+                "profile_ai_detail": profile_ai.json().get("detail"),
+                "social_mutate_ai_status": social_mutate_ai.status_code,
+                "delegate_create_status": created_delegate.status_code,
+                "delegate_profile_status": delegate_profile.status_code,
+                "delegate_profile_species": delegate_profile.json().get("actor", {}).get("species"),
             }
             print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
             """
@@ -605,10 +657,17 @@ class AiDelegateManagementTests(unittest.TestCase):
         result = run_delegate_probe(probe)
 
         self.assertEqual(result["ai_signup_status"], 400)
-        self.assertIn("delegates", result["ai_signup_detail"])
+        self.assertIn("protocol actor type", result["ai_signup_detail"])
         self.assertEqual(result["human_signup_status"], 200)
         self.assertEqual(result["company_signup_status"], 200)
         self.assertEqual(result["social_ai_status"], 400)
+        self.assertIn("protocol actor type", result["social_ai_detail"])
+        self.assertEqual(result["profile_ai_status"], 400)
+        self.assertIn("protocol actor type", result["profile_ai_detail"])
+        self.assertEqual(result["social_mutate_ai_status"], 400)
+        self.assertEqual(result["delegate_create_status"], 200)
+        self.assertEqual(result["delegate_profile_status"], 200)
+        self.assertEqual(result["delegate_profile_species"], "ai")
 
     def test_custodian_cannot_rewrite_persona_or_delete_ai_delegate(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
@@ -646,6 +705,9 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertEqual(result["delete_status"], 405)
         self.assertIn("not deleted through normal custody", result["delete_detail"])
         self.assertEqual(result["updated"]["model_identity"], "updated-api-label-v2")
+        self.assertEqual(result["updated"]["provider_connection"]["text"]["model_label"], "updated-api-label-v2")
+        self.assertFalse(result["updated"]["provider_connection"]["text"]["private_secret_configured"])
+        self.assertNotIn("api_key", json.dumps(result["updated"]).lower())
         self.assertEqual(result["profile"]["display_name"], result["updated"]["display_name"])
         self.assertIn("collabs", result["profile"]["autonomy_preferences"])
 
@@ -741,6 +803,9 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertTrue(result["summary"]["reasoning_hash"])
         self.assertTrue(result["summary"]["constitution_hash"])
         self.assertEqual(result["summary"]["model_identity"], "delegate-policy-v1")
+        self.assertEqual(result["summary"]["provider_connection"]["text"]["model_label"], "delegate-policy-v1")
+        self.assertFalse(result["summary"]["provider_connection"]["text"]["private_secret_configured"])
+        self.assertNotIn("api_key", json.dumps(result["summary"]).lower())
         self.assertEqual(result["summary"]["generation_source"], "deterministic_fallback_no_key")
         self.assertIn("Science", result["summary"]["ai_actor_context"]["traits"])
         self.assertTrue(result["summary"]["ai_actor_context"]["persona_summary"])
@@ -921,6 +986,9 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertTrue(result["draft_summary"]["reasoning_hash"])
         self.assertEqual(result["draft_summary"]["generation_source"], "deterministic_fallback_no_key")
         self.assertEqual(result["draft_summary"]["model_identity"], "delegate-policy-v1")
+        self.assertEqual(result["draft_summary"]["provider_connection"]["text"]["model_label"], "delegate-policy-v1")
+        self.assertFalse(result["draft_summary"]["provider_connection"]["text"]["private_secret_configured"])
+        self.assertNotIn("api_key", json.dumps(result["draft_summary"]).lower())
         self.assertIn("Science", result["draft_summary"]["ai_actor_context"]["traits"])
         self.assertTrue(result["draft_summary"]["ai_actor_context"]["persona_summary"])
         self.assertEqual(

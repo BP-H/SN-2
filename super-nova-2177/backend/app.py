@@ -967,6 +967,7 @@ def _system_ai_actor_payload() -> Dict[str, Any]:
         "custody_label": SUPERNOVA_SYSTEM_AI_CUSTODY_LABEL,
         "model_provider": "supernova",
         "model_identity": SUPERNOVA_AI_MODEL_IDENTITY,
+        "provider_connection": _ai_provider_connection_payload("supernova", SUPERNOVA_AI_MODEL_IDENTITY),
         "charter_name": SUPERNOVA_AI_CHARTER_NAME,
         "constitution_hash": SUPERNOVA_AI_CONSTITUTION_HASH,
         "prompt_policy_version": SUPERNOVA_AI_PROMPT_POLICY_VERSION,
@@ -1334,10 +1335,32 @@ def _ensure_ai_actors_table(db: Session) -> None:
     db.commit()
 
 
+def _ai_provider_connection_payload(model_provider: Optional[str], model_identity: Optional[str]) -> Dict[str, Any]:
+    provider_label = (model_provider or "supernova").strip() or "supernova"
+    model_label = (model_identity or SUPERNOVA_AI_MODEL_IDENTITY).strip() or SUPERNOVA_AI_MODEL_IDENTITY
+    return {
+        "text": {
+            "provider_label": provider_label,
+            "model_label": model_label,
+            "mode": "server_openai_or_deterministic_fallback",
+            "private_secret_storage": "deferred_until_encrypted_server_side_storage",
+            "private_secret_configured": False,
+        },
+        "image": {
+            "status": "deferred_until_encrypted_provider_connections",
+        },
+        "video": {
+            "status": "deferred",
+        },
+    }
+
+
 def _row_to_ai_actor_payload(row) -> Optional[Dict[str, Any]]:
     if not row:
         return None
     active_value = getattr(row, "active", True)
+    model_provider = getattr(row, "model_provider", "") or "supernova"
+    model_identity = getattr(row, "model_identity", "") or SUPERNOVA_AI_MODEL_IDENTITY
     return {
         "id": getattr(row, "id", None),
         "username": getattr(row, "username", ""),
@@ -1348,8 +1371,9 @@ def _row_to_ai_actor_payload(row) -> Optional[Dict[str, Any]]:
         "custodian_type": getattr(row, "custodian_type", None),
         "custody_label": getattr(row, "custody_label", "") or "",
         "harmonizer_user_id": getattr(row, "harmonizer_user_id", None),
-        "model_provider": getattr(row, "model_provider", "") or "supernova",
-        "model_identity": getattr(row, "model_identity", "") or SUPERNOVA_AI_MODEL_IDENTITY,
+        "model_provider": model_provider,
+        "model_identity": model_identity,
+        "provider_connection": _ai_provider_connection_payload(model_provider, model_identity),
         "charter_name": getattr(row, "charter_name", "") or "Principal AI Delegate Review Charter",
         "constitution_hash": getattr(row, "constitution_hash", "") or SUPERNOVA_AI_CONSTITUTION_HASH,
         "prompt_policy_version": getattr(row, "prompt_policy_version", "") or SUPERNOVA_AI_PROMPT_POLICY_VERSION,
@@ -1476,6 +1500,8 @@ def _ai_delegate_action_metadata(actor_payload: Dict[str, Any]) -> Dict[str, Any
         "delegate_harmonizer_user_id": actor_payload.get("harmonizer_user_id"),
         "model_identity": actor_payload.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY,
         "model_provider": actor_payload.get("model_provider") or "supernova",
+        "provider_connection": actor_payload.get("provider_connection")
+        or _ai_provider_connection_payload(actor_payload.get("model_provider"), actor_payload.get("model_identity")),
         "charter_name": actor_payload.get("charter_name") or "Principal AI Delegate Review Charter",
         "constitution_hash": actor_payload.get("constitution_hash") or SUPERNOVA_AI_CONSTITUTION_HASH,
         "prompt_policy_version": actor_payload.get("prompt_policy_version") or SUPERNOVA_AI_PROMPT_POLICY_VERSION,
@@ -2297,10 +2323,23 @@ class ProposalCollabRequestIn(BaseModel):
     collaborator_username: str
 
 
+PUBLIC_ACCOUNT_AI_SPECIES_ERROR = (
+    "AI is a protocol actor type, not a public account species. "
+    "Create AI delegates from a human or organization account."
+)
+
+
 def _normalize_species(value: Optional[str]) -> str:
     species = (value or "human").strip().lower()
     if species not in {"human", "ai", "company"}:
         raise HTTPException(status_code=400, detail="Invalid species")
+    return species
+
+
+def _normalize_public_account_species(value: Optional[str]) -> str:
+    species = _normalize_species(value)
+    if species == "ai":
+        raise HTTPException(status_code=400, detail=PUBLIC_ACCOUNT_AI_SPECIES_ERROR)
     return species
 
 
@@ -3485,12 +3524,7 @@ def register_user(payload: RegisterUserIn, db: Session = Depends(get_db)):
     if not username:
         raise HTTPException(status_code=400, detail="Username is required")
 
-    species = _normalize_species(payload.species)
-    if species == "ai":
-        raise HTTPException(
-            status_code=400,
-            detail="AI accounts are created as delegates from a human or organization account.",
-        )
+    species = _normalize_public_account_species(payload.species)
     existing = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == username.lower()).first()
     if existing:
         raise HTTPException(status_code=409, detail="Username already exists")
@@ -3602,11 +3636,13 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
     avatar_url = (payload.avatar_url or "").strip()
     species = None
     if payload.species:
+        raw_species = str(payload.species).strip()
+        if raw_species.lower() == "ai":
+            raise HTTPException(status_code=400, detail=PUBLIC_ACCOUNT_AI_SPECIES_ERROR)
         try:
-            species = _normalize_species(payload.species)
+            species = _normalize_public_account_species(payload.species)
         except HTTPException:
             species = None
-    standalone_ai_requested = species == "ai"
 
     if not username:
         raise HTTPException(status_code=400, detail="Username is required")
@@ -3614,11 +3650,6 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
         email = f"{provider_id or uuid.uuid4().hex}@{provider}.oauth.supernova"
 
     if Harmonizer is None:
-        if standalone_ai_requested:
-            raise HTTPException(
-                status_code=400,
-                detail="AI accounts are created as delegates from a human or organization account.",
-            )
         return {
             "id": None,
             "username": username,
@@ -3644,7 +3675,7 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
             existing.profile_pic = avatar_url
             avatar_to_sync = avatar_url
         if not getattr(existing, "species", None):
-            existing.species = "human" if standalone_ai_requested else species or "human"
+            existing.species = species or "human"
         existing.is_active = True
         existing.consent_given = True
         db.add(existing)
@@ -3662,12 +3693,6 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
             "backend": "supernovacore",
             **_auth_fields_for_user(existing),
         }
-
-    if standalone_ai_requested:
-        raise HTTPException(
-            status_code=400,
-            detail="AI accounts are created as delegates from a human or organization account.",
-        )
 
     candidate = username
     suffix = 2
@@ -6372,7 +6397,7 @@ def update_profile(
     old_species = getattr(user, "species", "human") or "human"
     species_changed = False
     if payload.species is not None:
-        next_species = _normalize_species(payload.species)
+        next_species = _normalize_public_account_species(payload.species)
         species_changed = next_species != old_species
         user.species = next_species
 

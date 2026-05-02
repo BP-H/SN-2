@@ -18,10 +18,16 @@ const GUEST_STORAGE_KEY = "supernova_social_six_guest";
 const CUSTOM_STORAGE_PREFIX = "supernova_social_six_custom::";
 const DEFAULT_AVATAR = FALLBACK_AVATAR;
 const SPECIES_KEYS = new Set(["human", "ai", "company"]);
+const PUBLIC_ACCOUNT_SPECIES_KEYS = new Set(["human", "company"]);
 
 function normalizeSpecies(value) {
   const species = typeof value === "string" ? value.trim().toLowerCase() : "";
   return SPECIES_KEYS.has(species) ? species : "";
+}
+
+function normalizePublicAccountSpecies(value) {
+  const species = typeof value === "string" ? value.trim().toLowerCase() : "";
+  return PUBLIC_ACCOUNT_SPECIES_KEYS.has(species) ? species : "";
 }
 
 function calculateInitials(name) {
@@ -332,7 +338,7 @@ export function UserProvider({ children }) {
       username,
       avatar_url: normalizeAvatarValue(storedAvatar || providerProfile.avatar || userData.avatar || ""),
     };
-    const explicitSpecies = normalizeSpecies(storedProfile?.species) || normalizeSpecies(providerProfile.species);
+    const explicitSpecies = normalizePublicAccountSpecies(storedProfile?.species) || normalizePublicAccountSpecies(providerProfile.species);
     if (explicitSpecies) {
       syncPayload.species = explicitSpecies;
     }
@@ -411,7 +417,7 @@ export function UserProvider({ children }) {
     const previous = storedProfile || {};
     const current = mergeUserData(providerProfile, previous);
     const patch = typeof update === "function" ? update(current) : update;
-    const nextSpecies = normalizeSpecies(patch?.species) || current.species || "human";
+    const nextSpecies = normalizePublicAccountSpecies(patch?.species) || normalizePublicAccountSpecies(current.species) || "human";
     const nextStored = {
       species: nextSpecies,
       customName: typeof patch?.name === "string" ? patch.name : previous.customName || current.name || "",
@@ -432,7 +438,7 @@ export function UserProvider({ children }) {
         body: JSON.stringify({
           username: nextStored.customName || username,
           avatar_url: normalizeAvatarValue(nextStored.customAvatar || ""),
-          species: normalizeSpecies(nextStored.species) || "human",
+          species: normalizePublicAccountSpecies(nextStored.species) || "human",
         }),
       }).catch(() => {
         // Local profile stays usable if backend sync is temporarily unavailable.
@@ -446,7 +452,7 @@ export function UserProvider({ children }) {
           ...prev,
           username: nextStored.customName || prev.username,
           avatar: normalizeAvatarValue(nextStored.customAvatar || ""),
-          species: normalizeSpecies(nextStored.species) || "human",
+          species: normalizePublicAccountSpecies(nextStored.species) || "human",
         };
         return writeBackendAuthSession(nextAuth) || nextAuth;
       });
@@ -455,12 +461,12 @@ export function UserProvider({ children }) {
 
   const syncSocialProfile = useCallback(async ({ username, species, avatar }) => {
     const cleanUsername = String(username || "").trim();
-    const accountSpecies = normalizeSpecies(species);
+    const accountSpecies = normalizePublicAccountSpecies(species);
     if (!providerProfile.id || providerProfile.provider === "guest" || providerProfile.provider === "password") {
       throw new Error("Social account is not ready.");
     }
     if (!cleanUsername) throw new Error("Choose a username.");
-    if (!accountSpecies) throw new Error("Choose Human, ORG, or AI.");
+    if (!accountSpecies) throw new Error("Choose Human or ORG. AI delegates are created through AI Genesis.");
 
     const response = await fetch(`${API_BASE_URL}/auth/social/sync`, {
       method: "POST",
@@ -505,7 +511,7 @@ export function UserProvider({ children }) {
     const current = mergeUserData(providerProfile, storedProfile || {});
     const currentUsername = passwordAuth?.username || current.name || providerProfile.name || "";
     const cleanUsername = String(username || currentUsername || "").trim();
-    const accountSpecies = normalizeSpecies(species) || current.species || "human";
+    const accountSpecies = normalizePublicAccountSpecies(species) || normalizePublicAccountSpecies(current.species) || "human";
     const nextAvatar = normalizeAvatarValue(avatar || current.avatar || "");
     if (!currentUsername) throw new Error("Current username is missing.");
     if (!cleanUsername) throw new Error("Choose a username.");
@@ -527,7 +533,7 @@ export function UserProvider({ children }) {
 
     const nextStored = {
       ...(storedProfile || {}),
-      species: normalizeSpecies(payload.species) || accountSpecies,
+      species: normalizePublicAccountSpecies(payload.species) || accountSpecies,
       customName: payload.username || cleanUsername,
       customAvatar: normalizeAvatarValue(payload.avatar_url || nextAvatar),
     };
@@ -542,7 +548,7 @@ export function UserProvider({ children }) {
           ...prev,
           username: nextStored.customName || prev.username,
           avatar: normalizeAvatarValue(nextStored.customAvatar || ""),
-          species: normalizeSpecies(nextStored.species) || "human",
+          species: normalizePublicAccountSpecies(nextStored.species) || "human",
         };
         return writeBackendAuthSession(nextAuth) || nextAuth;
       });
@@ -609,7 +615,7 @@ export function UserProvider({ children }) {
   }, [applyPasswordSession]);
 
   const registerWithPassword = useCallback(async ({ username, password, email, species }) => {
-    const accountSpecies = normalizeSpecies(species) || "human";
+    const accountSpecies = normalizePublicAccountSpecies(species) || "human";
     const response = await fetch(`${API_BASE_URL}/users/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

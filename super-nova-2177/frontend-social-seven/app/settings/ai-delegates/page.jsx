@@ -675,6 +675,29 @@ export default function AiDelegatesSettingsPage() {
                             This changes runtime metadata only; it does not rewrite persona history or prior reasoning.
                           </p>
                         </div>
+                        <div className="mt-3 rounded-[0.9rem] border border-[var(--horizontal-line)] bg-white/[0.03] p-3">
+                          <p className="text-[0.68rem] font-black uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
+                            Provider connection
+                          </p>
+                          <div className="mt-2 grid gap-2 text-[0.72rem] text-[var(--text-gray-light)] sm:grid-cols-3">
+                            <p>
+                              <span className="font-bold text-[var(--text-black)]">Text:</span>{" "}
+                              {delegate.provider_connection?.text?.provider_label || delegate.model_provider || "supernova"} /{" "}
+                              {delegate.provider_connection?.text?.model_label || delegate.model_identity || "supernova-protocol-charter-v1"}
+                            </p>
+                            <p>
+                              <span className="font-bold text-[var(--text-black)]">Image:</span>{" "}
+                              {delegate.provider_connection?.image?.status || "deferred"}
+                            </p>
+                            <p>
+                              <span className="font-bold text-[var(--text-black)]">Video:</span>{" "}
+                              {delegate.provider_connection?.video?.status || "deferred"}
+                            </p>
+                          </div>
+                          <p className="mt-2 text-[0.68rem] leading-4 text-[var(--text-gray-light)]">
+                            Custodian-managed runtime only. Per-delegate private API connections are deferred until encrypted server-side secret storage exists; no raw provider keys are stored here.
+                          </p>
+                        </div>
                       </div>
                       <button
                         type="button"

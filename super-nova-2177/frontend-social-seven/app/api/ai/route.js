@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 
 const MISSING_API_KEY_MESSAGE = "Missing OPENAI_API_KEY environment variable.";
-const CLIENT_KEYS_DISABLED_MESSAGE = "Local browser keys are disabled on this deployment.";
 const OPENAI_FAILED_MESSAGE = "OpenAI request failed.";
 
 function responsePayload(reply, overrides = {}) {
@@ -10,31 +9,17 @@ function responsePayload(reply, overrides = {}) {
     reply,
     ai_configured: false,
     used_key_source: "none",
-    client_keys_allowed: process.env.ALLOW_CLIENT_AI_KEY === "true",
+    client_keys_allowed: false,
     ...overrides,
   };
 }
 
 export async function POST(request) {
   try {
-    const { prompt, apiKey: requestApiKey } = await request.json();
-    const allowClientKey = process.env.ALLOW_CLIENT_AI_KEY === "true";
+    const { prompt } = await request.json();
     const serverApiKey = String(process.env.OPENAI_API_KEY || "").trim();
-    const clientApiKey = typeof requestApiKey === "string" ? requestApiKey.trim() : "";
-    const apiKey = serverApiKey || (allowClientKey ? clientApiKey : "");
-    const usedKeySource = serverApiKey ? "server" : apiKey ? "client" : "none";
 
-    if (!serverApiKey && clientApiKey && !allowClientKey) {
-      return NextResponse.json(
-        responsePayload(CLIENT_KEYS_DISABLED_MESSAGE, {
-          client_keys_allowed: false,
-          error_code: "client_keys_disabled",
-        }),
-        { status: 403 }
-      );
-    }
-
-    if (!apiKey) {
+    if (!serverApiKey) {
       return NextResponse.json(
         responsePayload(MISSING_API_KEY_MESSAGE, {
           error_code: "server_key_missing",
@@ -43,7 +28,7 @@ export async function POST(request) {
       );
     }
 
-    const openai = new OpenAI({ apiKey });
+    const openai = new OpenAI({ apiKey: serverApiKey });
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -54,7 +39,7 @@ export async function POST(request) {
     return NextResponse.json(
       responsePayload(reply, {
         ai_configured: true,
-        used_key_source: usedKeySource,
+        used_key_source: "server",
       })
     );
   } catch {

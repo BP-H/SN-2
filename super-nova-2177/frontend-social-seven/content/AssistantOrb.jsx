@@ -25,7 +25,6 @@ import {
 import { MentionAutocomplete, useMentionAutocomplete } from "@/utils/mentionAutocomplete";
 import { useUser } from "@/content/profile/UserContext";
 
-const KEY_STORAGE = "supernova-ai-cursor-key";
 const ORB_SIZE = 56;
 const DIAL_SIZE = 184;
 
@@ -68,7 +67,6 @@ function buildPrompt(action, target) {
 function aiConfigMessage(payload = {}) {
   const code = payload?.error_code || "";
   if (code === "server_key_missing") return "Server AI key missing. Set OPENAI_API_KEY in Vercel.";
-  if (code === "client_keys_disabled") return "Local keys are disabled on this deployment.";
   if (code === "openai_request_failed") return "OpenAI request failed.";
   return "AI unavailable; fallback text will be used.";
 }
@@ -208,7 +206,6 @@ export default function AssistantOrb() {
   const [hoverTarget, setHoverTarget] = useState(null);
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
-  const [apiKey, setApiKey] = useState("");
   const [aiSettingsNotice, setAiSettingsNotice] = useState("");
   const [aiTesting, setAiTesting] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -294,7 +291,6 @@ export default function AssistantOrb() {
 
   useEffect(() => {
     setMounted(true);
-    setApiKey(localStorage.getItem(KEY_STORAGE) || "");
     const frame = window.requestAnimationFrame(() => setPos(getDockPosition()));
     return () => {
       window.cancelAnimationFrame(frame);
@@ -498,13 +494,6 @@ export default function AssistantOrb() {
     };
   };
 
-  const persistKey = (value) => {
-    setApiKey(value);
-    setAiSettingsNotice("");
-    if (value.trim()) localStorage.setItem(KEY_STORAGE, value.trim());
-    else localStorage.removeItem(KEY_STORAGE);
-  };
-
   const testAi = async () => {
     if (aiTesting) return;
     setAiTesting(true);
@@ -513,10 +502,7 @@ export default function AssistantOrb() {
       const response = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          prompt: "Reply with: SuperNova AI ready.",
-          apiKey: apiKey.trim() || undefined,
-        }),
+        body: JSON.stringify({ prompt: "Reply with: SuperNova AI ready." }),
       });
       const data = await response.json().catch(() => ({}));
       setAiSettingsNotice(hasUsableAiReply(response, data) ? "AI is working." : aiConfigMessage(data));
@@ -727,7 +713,7 @@ export default function AssistantOrb() {
         const response = await fetch("/api/ai", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: buildPrompt("comment", target), apiKey: apiKey.trim() || undefined }),
+          body: JSON.stringify({ prompt: buildPrompt("comment", target) }),
         });
         const data = await response.json().catch(() => ({}));
         if (hasUsableAiReply(response, data)) {
@@ -783,7 +769,7 @@ export default function AssistantOrb() {
       const response = await fetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: buildPrompt(action, target), apiKey: apiKey.trim() || undefined }),
+        body: JSON.stringify({ prompt: buildPrompt(action, target) }),
       });
       const data = await response.json().catch(() => ({}));
       const aiReply = hasUsableAiReply(response, data)
@@ -1011,28 +997,11 @@ export default function AssistantOrb() {
           {settingsOpen && (
             <div className="mt-3 flex flex-col gap-2">
               <div className="ai-cursor-result-box rounded-[0.85rem] p-3 text-[0.72rem] leading-5">
-                Drag the AI cursor onto a post, then choose Brief or Draft. A server key uses OPENAI_API_KEY in Vercel.
-                A local browser key only works when ALLOW_CLIENT_AI_KEY=true. Saving a key does not automatically
-                generate anything.
+                Drag the AI cursor onto a post, then choose Brief or Draft. The AI widget uses the server
+                OPENAI_API_KEY when configured; it does not store browser keys. AI delegate provider labels are managed
+                in AI Genesis, with private provider connections deferred until encrypted server-side secret storage exists.
               </div>
-              <input
-                value={apiKey}
-                onChange={(event) => persistKey(event.target.value)}
-                type="password"
-                placeholder="OpenAI API key for local testing"
-                className="ai-cursor-field w-full rounded-[0.8rem] px-3 py-2 text-[0.78rem] outline-none"
-              />
               <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    persistKey(apiKey);
-                    setAiSettingsNotice("Key saved locally. Drag onto a post and choose Brief or Draft.");
-                  }}
-                  className="ai-cursor-secondary-button rounded-full px-3 py-2 text-[0.74rem] font-semibold"
-                >
-                  Save local key
-                </button>
                 <button
                   type="button"
                   onClick={testAi}

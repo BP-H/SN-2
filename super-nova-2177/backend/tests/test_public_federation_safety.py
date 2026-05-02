@@ -372,7 +372,7 @@ class PublicFederationSafetyTests(unittest.TestCase):
         self.assertNotIn("execution", statement_text)
         self.assertNotIn("webhook", statement_text)
 
-    def test_social_sync_preserves_existing_account_species(self):
+    def test_social_sync_preserves_existing_account_species_and_rejects_ai_mutation(self):
         existing = SimpleNamespace(
             id=2177,
             username="alice",
@@ -399,13 +399,36 @@ class PublicFederationSafetyTests(unittest.TestCase):
                 self.refreshed.append(item)
 
         fake_db = FakeDb()
-        payload = backend_app.SocialAuthSyncIn(
+        ai_payload = backend_app.SocialAuthSyncIn(
             provider="oauth",
             provider_id="provider-alice",
             email="alice@example.com",
             username="alice",
             avatar_url="",
             species="ai",
+        )
+
+        with patch.object(backend_app, "Harmonizer", object), patch.object(
+            backend_app, "_find_social_user", return_value=existing
+        ):
+            with self.assertRaises(backend_app.HTTPException) as error:
+                backend_app.sync_social_auth(ai_payload, db=fake_db)
+
+        self.assertEqual(error.exception.status_code, 400)
+        self.assertIn("protocol actor type", error.exception.detail)
+        self.assertEqual(existing.species, "company")
+        self.assertFalse(existing.is_active)
+        self.assertFalse(existing.consent_given)
+        self.assertEqual(fake_db.added, [])
+        self.assertEqual(fake_db.commits, 0)
+
+        payload = backend_app.SocialAuthSyncIn(
+            provider="oauth",
+            provider_id="provider-alice",
+            email="alice@example.com",
+            username="alice",
+            avatar_url="",
+            species="human",
         )
 
         with patch.object(backend_app, "Harmonizer", object), patch.object(

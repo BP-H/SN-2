@@ -6,7 +6,6 @@ import {
 } from "react-icons/fa";
 import imageCompression from "browser-image-compression";
 import { FaFacebookF, FaGoogle } from "react-icons/fa6";
-import { BsFillCpuFill } from "react-icons/bs";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -29,8 +28,17 @@ import { speciesAccentBgClass, speciesAvatarStyle } from "@/utils/species";
 const SPECIES = [
   { key: "human", label: "Human", icon: <FaUser /> },
   { key: "company", label: "ORG", icon: <FaBriefcase /> },
-  { key: "ai", label: "AI", icon: <BsFillCpuFill /> },
 ];
+
+function publicAccountSpecies(value) {
+  return value === "company" ? "company" : "human";
+}
+
+function publicAccountSpeciesLabel(value) {
+  if (value === "company") return "Organization";
+  if (value === "ai") return "AI protocol actor";
+  return "Human";
+}
 
 const PROVIDERS = [
   { key: "google", label: "Google", icon: <FaGoogle />, color: "#DB4437" },
@@ -167,7 +175,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
           username,
           password,
           email,
-          species: selectedSpecies || "human",
+          species: publicAccountSpecies(selectedSpecies),
         });
         setNotify(["Account created and signed in."]);
       } else {
@@ -235,7 +243,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
 
       const payload = await saveUserProfile({
         username: profileName || currentName || accountUsername,
-        species: selectedSpecies || "human",
+        species: publicAccountSpecies(selectedSpecies || userData.species),
         avatar: nextAvatar,
       });
       const savedAvatar = normalizeAvatarValue(payload.avatar_url || nextAvatar);
@@ -284,7 +292,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
       const previousUsername = currentName || accountUsername || profileName || "";
       const payload = await saveUserProfile({
         username: nextName,
-        species: selectedSpecies || "human",
+        species: publicAccountSpecies(selectedSpecies || userData.species),
         avatar: avatarUrl || userData.avatar || "",
       });
       const savedName = payload.username || nextName;
@@ -444,24 +452,12 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
               <IoCheckmark />
             </button>
           </div>
-          <div className="grid grid-cols-3 gap-1.5">
-            {SPECIES.map((item) => {
-              const selected = selectedSpecies === item.key;
-              return (
-                <button
-                  key={item.key}
-                  type="button"
-                  onClick={() => setSelectedSpecies(item.key)}
-                  className={`flex h-9 items-center justify-center gap-1 rounded-full text-[0.68rem] font-semibold ${
-                    selected ? `${speciesAccentBgClass(item.key)} text-white` : "auth-pill-inactive"
-                  }`}
-                  aria-pressed={selected}
-                >
-                  {item.icon}
-                  {item.label}
-                </button>
-              );
-            })}
+          <div className="rounded-[0.85rem] bg-white/[0.045] px-3 py-2 text-[0.7rem] leading-4 text-[var(--text-gray-light)]">
+            Principal type:{" "}
+            <span className="font-bold text-[var(--text-black)]">
+              {publicAccountSpeciesLabel(selectedSpecies || userData.species)}
+            </span>
+            . AI is a protocol actor type; create AI delegates through AI Genesis instead of switching this account into AI.
           </div>
         </div>
       )}
@@ -502,7 +498,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
               <div>
                 <p className="text-[1rem] font-black">SuperNova account</p>
                 <p className="auth-muted mt-0.5 text-[0.7rem]">
-                  {passwordMode === "create" ? "Choose your username and species." : "Sign in to sync across devices."}
+                  {passwordMode === "create" ? "Choose your username and principal type." : "Sign in to sync across devices."}
                 </p>
                 <p className="auth-muted mt-2 max-w-[18rem] text-[0.68rem] leading-4">
                   Reviewing is contribution: SuperNova records proposals, votes, reviews, and ratifications without tokens or speculation.
@@ -575,7 +571,8 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
             </div>
 
             {passwordMode === "create" && (
-              <div className="mt-3 grid grid-cols-3 gap-2">
+              <>
+              <div className="mt-3 grid grid-cols-2 gap-2">
                 {SPECIES.map((item) => {
                   const selected = selectedSpecies === item.key;
                   return (
@@ -593,6 +590,10 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
                   );
                 })}
               </div>
+              <p className="auth-muted mt-2 rounded-[0.85rem] px-3 py-2 text-[0.7rem] leading-5">
+                AI remains a protocol species. AI delegates are created after signup through AI Genesis.
+              </p>
+              </>
             )}
 
             <button
