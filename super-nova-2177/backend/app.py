@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import sys
 import uuid
 from datetime import timedelta
@@ -968,6 +969,163 @@ def _system_ai_actor_payload() -> Dict[str, Any]:
     }
 
 
+AI_DELEGATE_USERNAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{2,31}$")
+AI_DELEGATE_RESERVED_USERNAMES = {SUPERNOVA_SYSTEM_AI_USERNAME, "supernova", "system-ai", "protocol-ai"}
+
+
+def _normalize_ai_delegate_username(username: str) -> str:
+    clean = (username or "").strip().lower().lstrip("@")
+    if not AI_DELEGATE_USERNAME_RE.match(clean):
+        raise HTTPException(
+            status_code=400,
+            detail="AI delegate username must be 3-32 characters using lowercase letters, numbers, _ or -.",
+        )
+    if clean in AI_DELEGATE_RESERVED_USERNAMES:
+        raise HTTPException(status_code=400, detail="That AI delegate username is reserved")
+    return clean
+
+
+def _ensure_ai_actors_table(db: Session) -> None:
+    is_sqlite = str(DB_ENGINE_URL).startswith("sqlite")
+    id_column = "INTEGER PRIMARY KEY AUTOINCREMENT" if is_sqlite else "SERIAL PRIMARY KEY"
+    active_default = "1" if is_sqlite else "TRUE"
+    db.execute(text(f"""
+        CREATE TABLE IF NOT EXISTS ai_actors (
+            id {id_column},
+            username TEXT NOT NULL UNIQUE,
+            display_name TEXT NOT NULL,
+            species TEXT NOT NULL DEFAULT 'ai',
+            ai_actor_type TEXT NOT NULL DEFAULT 'principal_delegate',
+            custodian_user_id INTEGER,
+            custodian_type TEXT,
+            custody_label TEXT,
+            harmonizer_user_id INTEGER,
+            model_provider TEXT,
+            model_identity TEXT,
+            charter_name TEXT,
+            constitution_hash TEXT,
+            prompt_policy_version TEXT,
+            public_description TEXT,
+            avatar_url TEXT,
+            active BOOLEAN NOT NULL DEFAULT {active_default},
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            disabled_at TIMESTAMP
+        )
+    """))
+    db.commit()
+
+
+def _row_to_ai_actor_payload(row) -> Optional[Dict[str, Any]]:
+    if not row:
+        return None
+    active_value = getattr(row, "active", True)
+    return {
+        "id": getattr(row, "id", None),
+        "username": getattr(row, "username", ""),
+        "display_name": getattr(row, "display_name", "") or getattr(row, "username", ""),
+        "species": getattr(row, "species", "ai") or "ai",
+        "ai_actor_type": getattr(row, "ai_actor_type", "principal_delegate") or "principal_delegate",
+        "custodian_user_id": getattr(row, "custodian_user_id", None),
+        "custodian_type": getattr(row, "custodian_type", None),
+        "custody_label": getattr(row, "custody_label", "") or "",
+        "harmonizer_user_id": getattr(row, "harmonizer_user_id", None),
+        "model_provider": getattr(row, "model_provider", "") or "supernova",
+        "model_identity": getattr(row, "model_identity", "") or SUPERNOVA_AI_MODEL_IDENTITY,
+        "charter_name": getattr(row, "charter_name", "") or "Principal AI Delegate Review Charter",
+        "constitution_hash": getattr(row, "constitution_hash", "") or SUPERNOVA_AI_CONSTITUTION_HASH,
+        "prompt_policy_version": getattr(row, "prompt_policy_version", "") or SUPERNOVA_AI_PROMPT_POLICY_VERSION,
+        "public_description": getattr(row, "public_description", "") or "Principal-bound AI delegate account.",
+        "avatar_url": _social_avatar(getattr(row, "avatar_url", "") or ""),
+        "active": bool(active_value),
+        "created_at": _format_timestamp(getattr(row, "created_at", None)),
+        "updated_at": _format_timestamp(getattr(row, "updated_at", None)),
+        "disabled_at": _format_timestamp(getattr(row, "disabled_at", None)),
+    }
+
+
+def _get_ai_actor_row_by_username(db: Session, username: str):
+    _ensure_ai_actors_table(db)
+    return db.execute(
+        text("SELECT * FROM ai_actors WHERE lower(username) = lower(:username)"),
+        {"username": (username or "").strip()},
+    ).fetchone()
+
+
+def _get_ai_actor_row_by_id(db: Session, actor_id: Any):
+    _ensure_ai_actors_table(db)
+    try:
+        clean_id = int(actor_id)
+    except (TypeError, ValueError):
+        return None
+    return db.execute(text("SELECT * FROM ai_actors WHERE id = :id"), {"id": clean_id}).fetchone()
+
+
+def _public_ai_actor_payload(db: Session, username: str) -> Optional[Dict[str, Any]]:
+    row = _get_ai_actor_row_by_username(db, username)
+    if row:
+        return _row_to_ai_actor_payload(row)
+    return None
+
+
+def _actor_custodian_type(actor) -> str:
+    species = (getattr(actor, "species", "") or "human").strip().lower()
+    if species == "company":
+        return "company"
+    if species == "human":
+        return "human"
+    raise HTTPException(status_code=403, detail="Only human or organization accounts can manage AI delegates")
+
+
+def _delegate_harmonizer_email(username: str) -> str:
+    return f"ai-delegate-{username}@supernova.local"
+
+
+def _create_delegate_harmonizer(
+    db: Session,
+    *,
+    username: str,
+    display_name: str,
+    public_description: str,
+    avatar_url: str,
+):
+    existing = _find_harmonizer_by_username(db, username)
+    if existing:
+        raise HTTPException(status_code=409, detail="An account already uses that username")
+    harmonizer = Harmonizer(
+        username=username,
+        email=_delegate_harmonizer_email(username),
+        hashed_password=f"delegate-disabled-{uuid.uuid4().hex}",
+        bio=public_description or f"{display_name} AI delegate",
+        species="ai",
+        profile_pic=avatar_url or "default.jpg",
+        created_at=datetime.datetime.utcnow(),
+        is_active=True,
+        is_admin=False,
+    )
+    db.add(harmonizer)
+    db.flush()
+    return harmonizer
+
+
+def _ai_delegate_action_metadata(actor_payload: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "ai_actor_id": actor_payload.get("id"),
+        "ai_actor_username": actor_payload.get("username"),
+        "ai_actor_type": actor_payload.get("ai_actor_type", "principal_delegate"),
+        "species": "ai",
+        "custodian_id": actor_payload.get("custodian_user_id"),
+        "custodian_type": actor_payload.get("custodian_type"),
+        "custody_label": actor_payload.get("custody_label") or "",
+        "delegate_harmonizer_user_id": actor_payload.get("harmonizer_user_id"),
+        "model_identity": actor_payload.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY,
+        "model_provider": actor_payload.get("model_provider") or "supernova",
+        "charter_name": actor_payload.get("charter_name") or "Principal AI Delegate Review Charter",
+        "constitution_hash": actor_payload.get("constitution_hash") or SUPERNOVA_AI_CONSTITUTION_HASH,
+        "prompt_policy_version": actor_payload.get("prompt_policy_version") or SUPERNOVA_AI_PROMPT_POLICY_VERSION,
+    }
+
+
 def _ai_delegate_actor_metadata(actor) -> Dict[str, Any]:
     username = getattr(actor, "username", "") or ""
     return {
@@ -1258,9 +1416,31 @@ class ConnectorDraftAiReviewIn(BaseModel):
 
 
 class ConnectorDraftAiDelegateReviewIn(BaseModel):
+    model_config = {"extra": "forbid"}
     username: str
     proposal_id: int
+    ai_actor_id: Optional[int] = None
+    ai_actor_username: Optional[str] = None
     confidence: Optional[float] = None
+
+
+class AiDelegateCreateIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    username: str
+    display_name: str
+    public_description: Optional[str] = ""
+    model_provider: Optional[str] = None
+    model_identity: Optional[str] = None
+    charter_name: Optional[str] = None
+    ai_actor_type: Optional[str] = "principal_delegate"
+
+
+class AiDelegateUpdateIn(BaseModel):
+    model_config = {"extra": "forbid"}
+    display_name: Optional[str] = None
+    public_description: Optional[str] = None
+    avatar_url: Optional[str] = None
+    active: Optional[bool] = None
 
 
 class ConnectorDraftCommentIn(BaseModel):
@@ -3242,6 +3422,169 @@ def connector_get_proposal_vote_summary(proposal_id: int, db: Session = Depends(
     }
 
 
+@app.get("/ai/delegates", summary="List AI delegates custodied by the authenticated principal")
+def list_ai_delegates(
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    principal = get_current_harmonizer(authorization, db)
+    _actor_custodian_type(principal)
+    _ensure_ai_actors_table(db)
+    rows = db.execute(
+        text(
+            "SELECT * FROM ai_actors "
+            "WHERE ai_actor_type = 'principal_delegate' AND custodian_user_id = :custodian_user_id "
+            "ORDER BY created_at DESC, id DESC"
+        ),
+        {"custodian_user_id": getattr(principal, "id", None)},
+    ).fetchall()
+    return {
+        "ok": True,
+        "delegates": [_row_to_ai_actor_payload(row) for row in rows],
+        "count": len(rows),
+        "safety": {
+            "official_reasoning_locked": True,
+            "no_raw_api_key_storage": True,
+            "manual_approval_required": True,
+        },
+    }
+
+
+@app.post("/ai/delegates", summary="Create a principal-bound AI delegate")
+def create_ai_delegate(
+    payload: AiDelegateCreateIn,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    principal = get_current_harmonizer(authorization, db)
+    custodian_type = _actor_custodian_type(principal)
+    requested_type = (payload.ai_actor_type or "principal_delegate").strip().lower()
+    if requested_type != "principal_delegate":
+        raise HTTPException(status_code=403, detail="Ordinary users cannot create system AI actors")
+    username = _normalize_ai_delegate_username(payload.username)
+    display_name = (payload.display_name or "").strip()
+    if not display_name:
+        raise HTTPException(status_code=400, detail="display_name is required")
+    public_description = (payload.public_description or "").strip()[:800]
+    model_provider = (payload.model_provider or "supernova").strip()[:80] or "supernova"
+    model_identity = (payload.model_identity or SUPERNOVA_AI_MODEL_IDENTITY).strip()[:160] or SUPERNOVA_AI_MODEL_IDENTITY
+    charter_name = (payload.charter_name or "Principal AI Delegate Review Charter").strip()[:160] or "Principal AI Delegate Review Charter"
+    custody_label = f"Delegate of @{getattr(principal, 'username', '')}"
+
+    _ensure_ai_actors_table(db)
+    if _get_ai_actor_row_by_username(db, username):
+        raise HTTPException(status_code=409, detail="An AI delegate already uses that username")
+
+    try:
+        delegate_user = _create_delegate_harmonizer(
+            db,
+            username=username,
+            display_name=display_name,
+            public_description=public_description,
+            avatar_url="",
+        )
+        now = datetime.datetime.utcnow()
+        db.execute(
+            text(
+                "INSERT INTO ai_actors "
+                "(username, display_name, species, ai_actor_type, custodian_user_id, custodian_type, "
+                "custody_label, harmonizer_user_id, model_provider, model_identity, charter_name, "
+                "constitution_hash, prompt_policy_version, public_description, avatar_url, active, created_at, updated_at) "
+                "VALUES (:username, :display_name, 'ai', 'principal_delegate', :custodian_user_id, :custodian_type, "
+                ":custody_label, :harmonizer_user_id, :model_provider, :model_identity, :charter_name, "
+                ":constitution_hash, :prompt_policy_version, :public_description, :avatar_url, :active, :created_at, :updated_at)"
+            ),
+            {
+                "username": username,
+                "display_name": display_name,
+                "custodian_user_id": getattr(principal, "id", None),
+                "custodian_type": custodian_type,
+                "custody_label": custody_label,
+                "harmonizer_user_id": getattr(delegate_user, "id", None),
+                "model_provider": model_provider,
+                "model_identity": model_identity,
+                "charter_name": charter_name,
+                "constitution_hash": SUPERNOVA_AI_CONSTITUTION_HASH,
+                "prompt_policy_version": SUPERNOVA_AI_PROMPT_POLICY_VERSION,
+                "public_description": public_description,
+                "avatar_url": "",
+                "active": True,
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+        db.commit()
+        actor = _public_ai_actor_payload(db, username)
+        return {"ok": True, "delegate": actor}
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to create AI delegate: {str(exc)}")
+
+
+@app.patch("/ai/delegates/{delegate_id}", summary="Update safe public metadata for an owned AI delegate")
+def update_ai_delegate(
+    delegate_id: int,
+    payload: AiDelegateUpdateIn,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    principal = get_current_harmonizer(authorization, db)
+    _actor_custodian_type(principal)
+    row = _get_ai_actor_row_by_id(db, delegate_id)
+    if not row or getattr(row, "ai_actor_type", "") != "principal_delegate":
+        raise HTTPException(status_code=404, detail="AI delegate not found")
+    if getattr(row, "custodian_user_id", None) != getattr(principal, "id", None):
+        raise HTTPException(status_code=403, detail="Only the delegate custodian can update this AI delegate")
+
+    current = _row_to_ai_actor_payload(row) or {}
+    display_name = (payload.display_name if payload.display_name is not None else current.get("display_name", "")).strip()
+    public_description = (
+        payload.public_description
+        if payload.public_description is not None
+        else current.get("public_description", "")
+    )
+    public_description = (public_description or "").strip()[:800]
+    avatar_url = (payload.avatar_url if payload.avatar_url is not None else current.get("avatar_url", "")).strip()
+    active = current.get("active", True) if payload.active is None else bool(payload.active)
+    if not display_name:
+        raise HTTPException(status_code=400, detail="display_name is required")
+    disabled_at = None if active else datetime.datetime.utcnow()
+    now = datetime.datetime.utcnow()
+
+    try:
+        db.execute(
+            text(
+                "UPDATE ai_actors SET display_name = :display_name, public_description = :public_description, "
+                "avatar_url = :avatar_url, active = :active, updated_at = :updated_at, disabled_at = :disabled_at "
+                "WHERE id = :id"
+            ),
+            {
+                "display_name": display_name,
+                "public_description": public_description,
+                "avatar_url": avatar_url,
+                "active": active,
+                "updated_at": now,
+                "disabled_at": disabled_at,
+                "id": delegate_id,
+            },
+        )
+        delegate_user = db.query(Harmonizer).filter(Harmonizer.id == getattr(row, "harmonizer_user_id", None)).first()
+        if delegate_user:
+            delegate_user.bio = public_description
+            delegate_user.profile_pic = avatar_url or getattr(delegate_user, "profile_pic", "default.jpg")
+            delegate_user.is_active = active
+            db.add(delegate_user)
+        db.commit()
+        updated = _row_to_ai_actor_payload(_get_ai_actor_row_by_id(db, delegate_id))
+        return {"ok": True, "delegate": updated}
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to update AI delegate: {str(exc)}")
+
+
 @app.get("/ai-actors/{username}", summary="Read a public AI actor profile")
 def get_ai_actor_profile(username: str, db: Session = Depends(get_db)):
     clean_username = (username or "").strip()
@@ -3253,6 +3596,19 @@ def get_ai_actor_profile(username: str, db: Session = Depends(get_db)):
                 "advisory": True,
                 "manual_preview_only": True,
                 "ordinary_users_cannot_publish_as_system_ai": True,
+                "no_automatic_execution": True,
+            },
+        }
+
+    persistent_actor = _public_ai_actor_payload(db, clean_username)
+    if persistent_actor:
+        return {
+            "mode": "public_read_only",
+            "actor": persistent_actor,
+            "safety": {
+                "approval_required": True,
+                "manual_preview_only": True,
+                "official_reasoning_should_be_generated_from_locked_charters": True,
                 "no_automatic_execution": True,
             },
         }
@@ -3324,6 +3680,24 @@ def get_system_ai_review(proposal_id: int, db: Session = Depends(get_db)):
 def get_ai_review_ledger(proposal_id: int, db: Session = Depends(get_db)):
     proposal = _connector_get_proposal_or_404(db, proposal_id)
     system_review = get_system_ai_review(proposal_id, db)
+    ai_review_results: Dict[str, Dict[str, Any]] = {}
+    if ConnectorActionProposal is not None:
+        actions = (
+            db.query(ConnectorActionProposal)
+            .filter(ConnectorActionProposal.action_type == "draft_ai_review")
+            .filter(ConnectorActionProposal.status == "executed")
+            .filter(ConnectorActionProposal.target_id == str(proposal_id))
+            .all()
+        )
+        for action in actions:
+            result_payload = _connector_action_payload(getattr(action, "result_payload", None))
+            actor_key = str(result_payload.get("actor") or "").lower()
+            if actor_key:
+                ai_review_results[actor_key] = result_payload
+            ai_actor_username = str(result_payload.get("ai_actor_username") or "").lower()
+            if ai_actor_username:
+                ai_review_results[ai_actor_username] = result_payload
+
     groups: Dict[str, List[Dict[str, Any]]] = {
         "humans": [],
         "organizations": [],
@@ -3349,9 +3723,20 @@ def get_ai_review_ledger(proposal_id: int, db: Session = Depends(get_db)):
                 row["actor_type_badge"] = "Organization"
                 groups["organizations"].append(row)
             elif species == "ai":
+                review_payload = ai_review_results.get(str(username or "").lower()) or {}
+                actor_profile = _public_ai_actor_payload(db, username) or {}
                 row["actor_type_badge"] = "AI delegate"
-                row["custody_label"] = f"AI delegate account @{username}" if username else "AI delegate account"
-                row["reasoning_summary"] = "AI reasoning is required for official AI reviews."
+                row["ai_actor_type"] = review_payload.get("ai_actor_type") or actor_profile.get("ai_actor_type") or "principal_delegate"
+                row["custody_label"] = (
+                    review_payload.get("custody_label")
+                    or actor_profile.get("custody_label")
+                    or (f"AI delegate account @{username}" if username else "AI delegate account")
+                )
+                row["reasoning_summary"] = review_payload.get("reasoning_summary") or "AI reasoning is required for official AI reviews."
+                row["reasoning_hash"] = review_payload.get("reasoning_hash")
+                row["model_identity"] = review_payload.get("model_identity") or actor_profile.get("model_identity")
+                row["prompt_policy_version"] = review_payload.get("prompt_policy_version") or actor_profile.get("prompt_policy_version")
+                row["ai_actor_profile_url"] = f"/ai/{username}" if username else ""
                 groups["personal_ai_delegates"].append(row)
             else:
                 row["actor_type_badge"] = "Human"
@@ -3843,14 +4228,42 @@ def connector_draft_ai_delegate_review(
     authorization: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    actor = _connector_require_ai_actor(authorization, db, payload.username)
+    requester = _connector_require_actor(authorization, db, payload.username)
     proposal = _connector_get_proposal_or_404(db, payload.proposal_id)
-    actor_metadata = _ai_delegate_actor_metadata(actor)
+    actor_payload = None
+    publish_actor = None
+    action_actor_user_id = getattr(requester, "id", None)
+
+    if payload.ai_actor_id is not None or payload.ai_actor_username:
+        row = (
+            _get_ai_actor_row_by_id(db, payload.ai_actor_id)
+            if payload.ai_actor_id is not None
+            else _get_ai_actor_row_by_username(db, payload.ai_actor_username or "")
+        )
+        actor_payload = _row_to_ai_actor_payload(row)
+        if not actor_payload or actor_payload.get("ai_actor_type") != "principal_delegate":
+            raise HTTPException(status_code=404, detail="AI delegate not found")
+        if actor_payload.get("custodian_user_id") != getattr(requester, "id", None):
+            raise HTTPException(status_code=403, detail="Only the delegate custodian can request this AI review")
+        if not actor_payload.get("active"):
+            raise HTTPException(status_code=403, detail="AI delegate is disabled")
+        publish_actor = db.query(Harmonizer).filter(Harmonizer.id == actor_payload.get("harmonizer_user_id")).first()
+        if not publish_actor or (getattr(publish_actor, "species", "") or "").lower() != "ai":
+            raise HTTPException(status_code=409, detail="AI delegate identity is not publishable")
+        actor_metadata = _ai_delegate_action_metadata(actor_payload)
+        display_name = actor_payload.get("display_name") or actor_payload.get("username")
+    else:
+        if (getattr(requester, "species", "") or "").strip().lower() != "ai":
+            raise HTTPException(status_code=400, detail="ai_actor_id or ai_actor_username is required")
+        publish_actor = requester
+        actor_metadata = _ai_delegate_actor_metadata(requester)
+        display_name = getattr(requester, "username", "")
+
     review = _generate_locked_ai_review(
         proposal=proposal,
         actor_payload={
             **actor_metadata,
-            "display_name": getattr(actor, "username", ""),
+            "display_name": display_name,
         },
         allow_caution=False,
     )
@@ -3858,9 +4271,10 @@ def connector_draft_ai_delegate_review(
     confidence = _connector_confidence(payload.confidence)
     summary = {
         "action": "draft_ai_review",
-        "actor": getattr(actor, "username", ""),
+        "actor": getattr(publish_actor, "username", ""),
         "actor_species": "ai",
         **actor_metadata,
+        "approved_by_required_user_id": action_actor_user_id,
         "proposal_id": getattr(proposal, "id", payload.proposal_id),
         "proposal_title": _connector_proposal_title(proposal),
         "rationale": review["reasoning_text"],
@@ -3878,7 +4292,7 @@ def connector_draft_ai_delegate_review(
         record = _create_connector_action_draft(
             db,
             action_type="draft_ai_review",
-            actor_user_id=getattr(actor, "id", None),
+            actor_user_id=action_actor_user_id,
             target_type="proposal_ai_review",
             target_id=getattr(proposal, "id", payload.proposal_id),
             draft_payload=summary,
@@ -3975,12 +4389,29 @@ def connector_approve_ai_review_action(
         raise HTTPException(status_code=400, detail="Connector action is not a draft AI review")
     if getattr(action, "status", "") != "draft":
         raise HTTPException(status_code=409, detail="Connector action is not in draft status")
-    if getattr(action, "actor_user_id", None) != getattr(actor, "id", None):
-        raise HTTPException(status_code=403, detail="Bearer token does not match connector action actor")
-    if (getattr(actor, "species", "") or "").strip().lower() != "ai":
-        raise HTTPException(status_code=403, detail="AI review approval requires an AI actor")
-
     payload = _connector_action_payload(getattr(action, "draft_payload", None))
+    persistent_ai_actor_id = payload.get("ai_actor_id")
+    publish_actor = actor
+    if persistent_ai_actor_id is not None and payload.get("delegate_harmonizer_user_id"):
+        if getattr(action, "actor_user_id", None) != getattr(actor, "id", None):
+            raise HTTPException(status_code=403, detail="Bearer token does not match AI delegate custodian")
+        if payload.get("custodian_id") != getattr(actor, "id", None):
+            raise HTTPException(status_code=403, detail="Only the AI delegate custodian can approve this review")
+        row = _get_ai_actor_row_by_id(db, persistent_ai_actor_id)
+        actor_payload = _row_to_ai_actor_payload(row)
+        if not actor_payload or actor_payload.get("custodian_user_id") != getattr(actor, "id", None):
+            raise HTTPException(status_code=403, detail="AI delegate custody no longer matches this action")
+        if not actor_payload.get("active"):
+            raise HTTPException(status_code=403, detail="AI delegate is disabled")
+        publish_actor = db.query(Harmonizer).filter(Harmonizer.id == payload.get("delegate_harmonizer_user_id")).first()
+        if not publish_actor or (getattr(publish_actor, "species", "") or "").strip().lower() != "ai":
+            raise HTTPException(status_code=409, detail="AI delegate identity is not publishable")
+    else:
+        if getattr(action, "actor_user_id", None) != getattr(actor, "id", None):
+            raise HTTPException(status_code=403, detail="Bearer token does not match connector action actor")
+        if (getattr(actor, "species", "") or "").strip().lower() != "ai":
+            raise HTTPException(status_code=403, detail="AI review approval requires an AI actor")
+
     proposal_id = payload.get("proposal_id") or getattr(action, "target_id", None)
     try:
         proposal_id = int(proposal_id)
@@ -3995,10 +4426,10 @@ def connector_approve_ai_review_action(
     confidence = _connector_confidence(payload.get("confidence"))
 
     try:
-        result = _connector_execute_vote(db, actor=actor, proposal=proposal, choice=choice)
+        result = _connector_execute_vote(db, actor=publish_actor, proposal=proposal, choice=choice)
         comment = _connector_create_ai_review_comment(
             db,
-            actor=actor,
+            actor=publish_actor,
             proposal=proposal,
             rationale=rationale,
         )
@@ -4031,7 +4462,8 @@ def connector_approve_ai_review_action(
         summary = {
             "action": "approve_ai_review_action",
             "source_action": "draft_ai_review",
-            "actor": getattr(actor, "username", ""),
+            "actor": getattr(publish_actor, "username", ""),
+            "approved_by": getattr(actor, "username", ""),
             "actor_species": "ai",
             "proposal_id": getattr(proposal, "id", proposal_id),
             "proposal_title": _connector_proposal_title(proposal),

@@ -38,7 +38,7 @@ import PdfPager from "./PdfPager";
 import { avatarDisplayUrl, normalizeAvatarValue } from "@/utils/avatar";
 import { BOOKMARKS_CHANGED_EVENT, isBookmarkedId, toggleBookmarkId } from "@/utils/bookmarks";
 import LinkifiedText, { normalizeLinkHref } from "@/utils/linkify";
-import { speciesAccentColor, speciesAvatarStyle } from "@/utils/species";
+import { normalizeSpeciesKey, speciesAccentColor, speciesAvatarStyle } from "@/utils/species";
 import { useVerifiedMentionUsernames } from "@/utils/verifiedMentions";
 import { buildWeightedVoteSummary } from "@/utils/voteWeights";
 
@@ -159,6 +159,9 @@ function ProposalCard({
   const [aiReviewBusy, setAiReviewBusy] = useState(false);
   const [aiReviewStatus, setAiReviewStatus] = useState("");
   const [aiReviewError, setAiReviewError] = useState("");
+  const [aiDelegates, setAiDelegates] = useState([]);
+  const [aiDelegatesLoading, setAiDelegatesLoading] = useState(false);
+  const [selectedAiDelegateId, setSelectedAiDelegateId] = useState("");
   const shareMenuRef = useRef(null);
   const optionsMenuRef = useRef(null);
 
@@ -196,8 +199,25 @@ function ProposalCard({
   const verifiedMentions = useVerifiedMentionUsernames(localText);
   const authorSpecies = isOwner ? userData?.species || specie : specie || "human";
   const authorAvatarStyle = speciesAvatarStyle(authorSpecies);
-  const currentUserSpecies = String(userData?.species || "").trim().toLowerCase();
+  const currentUserSpecies = normalizeSpeciesKey(userData?.species || "");
   const isAiActor = Boolean(userData?.name && currentUserSpecies === "ai");
+  const canManageAiDelegates = Boolean(userData?.name && (currentUserSpecies === "human" || currentUserSpecies === "company"));
+  const aiDelegateOptions = useMemo(() => {
+    const activeDelegates = Array.isArray(aiDelegates) ? aiDelegates.filter((delegate) => delegate?.active) : [];
+    if (isAiActor) {
+      return [
+        {
+          id: "",
+          username: userData.name,
+          display_name: userData.name,
+          custody_label: "This AI account",
+          legacySelf: true,
+        },
+        ...activeDelegates,
+      ];
+    }
+    return activeDelegates;
+  }, [aiDelegates, isAiActor, userData?.name]);
   const displayLogo = isOwner && normalizeAvatarValue(userData?.avatar) ? userData.avatar : localLogo;
   const displayAvatar = avatarDisplayUrl(displayLogo, defaultAvatar);
   const governance = media?.governance || null;
@@ -218,6 +238,38 @@ function ProposalCard({
     const timer = window.setInterval(() => setNowMs(Date.now()), 60000);
     return () => window.clearInterval(timer);
   }, [governance?.voting_deadline, isDecisionProposal]);
+
+  useEffect(() => {
+    if (!userData?.name || !canManageAiDelegates) {
+      setAiDelegates([]);
+      setSelectedAiDelegateId("");
+      return undefined;
+    }
+    const controller = new AbortController();
+    async function fetchDelegates() {
+      setAiDelegatesLoading(true);
+      try {
+        const response = await fetch(`${API_BASE_URL}/ai/delegates`, {
+          headers: authHeaders(),
+          signal: controller.signal,
+        });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload?.detail || "Unable to load AI delegates.");
+        const delegates = Array.isArray(payload.delegates) ? payload.delegates : [];
+        setAiDelegates(delegates);
+        const firstActive = delegates.find((delegate) => delegate?.active);
+        setSelectedAiDelegateId((current) => current || (firstActive?.id ? String(firstActive.id) : ""));
+      } catch (error) {
+        if (error?.name !== "AbortError") {
+          setAiDelegates([]);
+        }
+      } finally {
+        if (!controller.signal.aborted) setAiDelegatesLoading(false);
+      }
+    }
+    fetchDelegates();
+    return () => controller.abort();
+  }, [canManageAiDelegates, userData?.name]);
 
   useEffect(() => {
     if (!collabInviteOpen || collabSearch.trim().length < 1) {
@@ -519,6 +571,12 @@ function ProposalCard({
     if (/AI review drafts require an AI actor|AI review approval requires an AI actor/i.test(message)) {
       return "Only AI accounts can create AI review drafts.";
     }
+    if (/Only the delegate custodian|custody|ai_actor_id|AI delegate not found/i.test(message)) {
+      return "Choose one of your active AI delegates.";
+    }
+    if (/AI delegate is disabled/i.test(message)) {
+      return "Enable this AI delegate before requesting a review.";
+    }
     if (/Invalid vote choice/i.test(message)) {
       return "Choose support, oppose, or abstain.";
     }
@@ -544,10 +602,13 @@ function ProposalCard({
       window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
       return;
     }
-    if (!isAiActor) {
-      setAiReviewError("Only AI accounts can create AI review drafts.");
+    if (aiDelegateOptions.length === 0) {
+      setAiReviewError("Create an AI delegate first.");
       return;
     }
+    const selectedDelegate =
+      aiDelegateOptions.find((delegate) => String(delegate.id || "") === String(selectedAiDelegateId || "")) ||
+      aiDelegateOptions[0];
 
     setAiReviewBusy(true);
     setAiReviewError("");
@@ -560,6 +621,11 @@ function ProposalCard({
         body: JSON.stringify({
           username: userData.name,
           proposal_id: Number(id),
+          ...(selectedDelegate?.legacySelf
+            ? {}
+            : selectedDelegate?.id
+            ? { ai_actor_id: Number(selectedDelegate.id) }
+            : { ai_actor_username: selectedDelegate?.username }),
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -1297,7 +1363,7 @@ function ProposalCard({
 
           {/* Right: comment and share */}
           <div className="flex shrink-0 items-center gap-1.5">
-            {isAiActor && (
+            {userData?.name && (
               <button
                 type="button"
                 onClick={() => {
@@ -1377,7 +1443,7 @@ function ProposalCard({
           </div>
         </div>
 
-        {isAiActor && aiReviewOpen && (
+        {userData?.name && aiReviewOpen && (
           <div
             className="ai-review-draft-panel rounded-[1rem] p-3"
             onClick={(event) => {
@@ -1402,6 +1468,32 @@ function ProposalCard({
               </button>
             </div>
 
+            {aiDelegateOptions.length > 0 ? (
+              <label className="mt-3 grid gap-1.5 text-[0.68rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
+                Delegate
+                <select
+                  value={selectedAiDelegateId}
+                  onChange={(event) => setSelectedAiDelegateId(event.target.value)}
+                  className="rounded-[0.8rem] border border-[var(--horizontal-line)] bg-transparent px-3 py-2 text-[0.82rem] normal-case tracking-normal text-[var(--text-black)] outline-none"
+                >
+                  {aiDelegateOptions.map((delegate) => (
+                    <option key={delegate.legacySelf ? "self" : delegate.id} value={delegate.legacySelf ? "" : String(delegate.id || "")}>
+                      {delegate.display_name || delegate.username} - @{delegate.username}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <div className="mt-3 rounded-[0.85rem] border border-[var(--horizontal-line)] bg-white/[0.045] px-3 py-2 text-[0.74rem] leading-5 text-[var(--text-gray-light)]">
+                {aiDelegatesLoading ? "Loading AI delegates..." : "Create an AI delegate first."}{" "}
+                {!aiDelegatesLoading && (
+                  <Link href="/settings/ai-delegates" className="font-bold text-[var(--pink)] hover:underline">
+                    Open delegate settings
+                  </Link>
+                )}
+              </div>
+            )}
+
             <div className="mt-3 rounded-[0.85rem] border border-[var(--horizontal-line)] bg-white/[0.045] px-3 py-2 text-[0.73rem] leading-5 text-[var(--text-gray-light)]">
               AI reasoning cannot be edited before approval. Canceling the draft prevents publication.
             </div>
@@ -1413,7 +1505,7 @@ function ProposalCard({
               <button
                 type="button"
                 onClick={handleDraftAiReview}
-                disabled={aiReviewBusy}
+                disabled={aiReviewBusy || aiDelegateOptions.length === 0}
                 className="ai-review-submit rounded-full px-3.5 py-2 text-[0.74rem] font-semibold disabled:opacity-55"
               >
                 {aiReviewBusy ? "Saving..." : "Request review draft"}

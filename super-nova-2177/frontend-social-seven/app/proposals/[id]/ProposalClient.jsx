@@ -23,8 +23,79 @@ function formatRelativeTime(dateString) {
   return "now";
 }
 
+function friendlyFetchError(error, fallback, networkMessage = fallback) {
+  const message = String(error?.message || error || "");
+  if (/failed to fetch|load failed|networkerror/i.test(message)) {
+    return networkMessage;
+  }
+  return message || fallback;
+}
+
+function LedgerGroup({ title, rows = [] }) {
+  return (
+    <div className="rounded-[0.9rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-3">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-[0.76rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">{title}</h3>
+        <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[0.68rem] font-bold text-[var(--text-black)]">{rows.length}</span>
+      </div>
+      {rows.length === 0 ? (
+        <p className="text-[0.75rem] text-[var(--text-gray-light)]">No entries yet.</p>
+      ) : (
+        <div className="grid gap-2">
+          {rows.map((row, index) => {
+            const hash = String(row.reasoning_hash || "");
+            const compactHash = hash ? `${hash.slice(0, 8)}...${hash.slice(-5)}` : "";
+            const profileUrl = row.ai_actor_profile_url || (row.username ? `/users/${encodeURIComponent(row.username)}` : "");
+            return (
+              <article key={`${row.username || title}-${index}`} className="rounded-[0.8rem] bg-white/[0.035] p-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    {profileUrl ? (
+                      <Link href={profileUrl} className="font-bold text-[var(--text-black)] hover:text-[var(--pink)]">
+                        {row.display_name || row.username || "Unknown"}
+                      </Link>
+                    ) : (
+                      <span className="font-bold text-[var(--text-black)]">{row.display_name || row.username || "Unknown"}</span>
+                    )}
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      <span className="rounded-full bg-[rgba(255,47,130,0.1)] px-2 py-0.5 text-[0.62rem] font-bold uppercase tracking-[0.1em] text-[var(--pink)]">
+                        {row.species || "human"}
+                      </span>
+                      {row.actor_type_badge && (
+                        <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[0.62rem] font-bold uppercase tracking-[0.1em] text-[var(--text-gray-light)]">
+                          {row.actor_type_badge}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <span className="rounded-full bg-white/[0.06] px-2.5 py-1 text-[0.7rem] font-bold text-[var(--text-black)]">
+                    {row.vote || row.stance || "review"}
+                  </span>
+                </div>
+                {(row.reasoning_summary || row.custody_label || compactHash) && (
+                  <div className="mt-2 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
+                    {row.reasoning_summary && <p>{row.reasoning_summary}</p>}
+                    {row.custody_label && <p className="mt-1 font-semibold">{row.custody_label}</p>}
+                    {(row.model_identity || row.prompt_policy_version || compactHash) && (
+                      <p className="mt-1 break-words">
+                        {row.model_identity || row.prompt_policy_version || "policy"} {compactHash ? `- ${compactHash}` : ""}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SystemAiReviewCard({ proposalId }) {
   const [reviewState, setReviewState] = useState({ loading: true, payload: null, error: "" });
+  const [ledgerOpen, setLedgerOpen] = useState(false);
+  const [ledgerState, setLedgerState] = useState({ loading: false, payload: null, error: "" });
 
   useEffect(() => {
     let ignore = false;
@@ -42,7 +113,11 @@ function SystemAiReviewCard({ proposalId }) {
           setReviewState({
             loading: false,
             payload: null,
-            error: error?.message || "SuperNova AI review is unavailable.",
+            error: friendlyFetchError(
+              error,
+              "SuperNova AI review is unavailable.",
+              "SuperNova AI review is not reachable from this deployment yet."
+            ),
           });
         }
       }
@@ -61,6 +136,31 @@ function SystemAiReviewCard({ proposalId }) {
   const riskFlags = Array.isArray(review.risk_flags) ? review.risk_flags : [];
   const hash = String(review.reasoning_hash || "");
   const compactHash = hash ? `${hash.slice(0, 10)}...${hash.slice(-6)}` : "";
+
+  const loadLedger = async () => {
+    if (!proposalId) return;
+    try {
+      setLedgerState({ loading: true, payload: ledgerState.payload, error: "" });
+      const response = await fetch(`${API_BASE_URL}/proposals/${proposalId}/ai-review-ledger`);
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.detail || "Unable to load vote/review ledger.");
+      setLedgerState({ loading: false, payload, error: "" });
+    } catch (error) {
+      setLedgerState({
+        loading: false,
+        payload: null,
+        error: friendlyFetchError(error, "Unable to load vote/review ledger.", "Vote/review ledger is not reachable from this deployment yet."),
+      });
+    }
+  };
+
+  const toggleLedger = () => {
+    const nextOpen = !ledgerOpen;
+    setLedgerOpen(nextOpen);
+    if (nextOpen && !ledgerState.payload && !ledgerState.loading) {
+      loadLedger();
+    }
+  };
 
   return (
     <section className="rounded-[1.1rem] border border-[var(--horizontal-line)] bg-[var(--surface-strong)] p-4 shadow-sm">
@@ -119,8 +219,35 @@ function SystemAiReviewCard({ proposalId }) {
               <dd className="mt-0.5 break-words">{compactHash}</dd>
             </div>
           </dl>
+          <button
+            type="button"
+            onClick={toggleLedger}
+            className="rounded-full border border-[var(--horizontal-line)] px-3 py-2 text-[0.74rem] font-bold text-[var(--text-black)] hover:text-[var(--pink)]"
+          >
+            {ledgerOpen ? "Hide vote/review ledger" : "Open vote/review ledger"}
+          </button>
         </div>
       ) : null}
+
+      {ledgerOpen && (
+        <div className="mt-4 grid gap-3">
+          {ledgerState.loading && <p className="text-[0.76rem] text-[var(--text-gray-light)]">Loading ledger...</p>}
+          {ledgerState.error && (
+            <p className="rounded-[0.85rem] bg-[rgba(255,47,130,0.08)] px-3 py-2 text-[0.76rem] font-semibold text-[var(--pink)]">
+              {ledgerState.error}
+            </p>
+          )}
+          {ledgerState.payload?.groups && (
+            <>
+              <LedgerGroup title="Humans" rows={ledgerState.payload.groups.humans || []} />
+              <LedgerGroup title="Organizations" rows={ledgerState.payload.groups.organizations || []} />
+              <LedgerGroup title="Personal AI Delegates" rows={ledgerState.payload.groups.personal_ai_delegates || []} />
+              <LedgerGroup title="Organization AI Delegates" rows={ledgerState.payload.groups.organization_ai_delegates || []} />
+              <LedgerGroup title="System AI" rows={ledgerState.payload.groups.system_ai || []} />
+            </>
+          )}
+        </div>
+      )}
     </section>
   );
 }
@@ -140,7 +267,7 @@ export default function ProposalClient({ id }) {
         const data = await res.json();
         setProposal(data);
       } catch (err) {
-        setFetchError(err.message);
+        setFetchError(friendlyFetchError(err, "Failed to fetch proposal.", "Proposal is not reachable from this deployment yet."));
       } finally {
         setLoading(false);
       }
