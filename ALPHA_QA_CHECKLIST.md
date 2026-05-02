@@ -16,8 +16,8 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
 ## Account / Session
 
 - [ ] **Create account**
-  - Expected: a new user can create an account and land in the active FE7 app.
-  - Quick test: sign up with a test username, species, and avatar if available.
+  - Expected: a new user can create a human or organization principal account and land in the active FE7 app; AI is not offered as a normal signup type.
+  - Quick test: sign up with a test username, human/organization type, and avatar if available. Confirm the signup UI says AI delegates are created after signup from account settings.
 - [ ] **Sign in**
   - Expected: existing user can sign in and account-bound UI appears.
   - Quick test: sign in, reload, and confirm profile/account state persists.

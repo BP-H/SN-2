@@ -198,6 +198,77 @@ def vote_rows():
 
 
 class AiDelegateManagementTests(unittest.TestCase):
+    def test_public_signup_allows_principals_but_rejects_standalone_ai(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            standalone_ai = client.post(
+                "/users/register",
+                json={
+                    "username": "public-ai",
+                    "email": "public-ai@example.test",
+                    "password": "password123",
+                    "species": "ai",
+                },
+            )
+            human = client.post(
+                "/users/register",
+                json={
+                    "username": "public-human",
+                    "email": "public-human@example.test",
+                    "password": "password123",
+                    "species": "human",
+                },
+            )
+            company = client.post(
+                "/users/register",
+                json={
+                    "username": "public-company",
+                    "email": "public-company@example.test",
+                    "password": "password123",
+                    "species": "company",
+                },
+            )
+            social_ai = client.post(
+                "/auth/social/sync",
+                json={
+                    "provider": "github",
+                    "provider_id": "standalone-ai-provider",
+                    "email": "standalone-ai-provider@example.test",
+                    "username": "social-ai",
+                    "species": "ai",
+                },
+            )
+            result = {
+                "standalone_ai_status": standalone_ai.status_code,
+                "standalone_ai_detail": standalone_ai.json().get("detail"),
+                "human_status": human.status_code,
+                "human_species": human.json().get("species"),
+                "company_status": company.status_code,
+                "company_species": company.json().get("species"),
+                "social_ai_status": social_ai.status_code,
+                "social_ai_detail": social_ai.json().get("detail"),
+            }
+            print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_delegate_probe(probe)
+
+        self.assertEqual(result["standalone_ai_status"], 400)
+        self.assertEqual(
+            result["standalone_ai_detail"],
+            "AI accounts are created as delegates from a human or organization account.",
+        )
+        self.assertEqual(result["human_status"], 200)
+        self.assertEqual(result["human_species"], "human")
+        self.assertEqual(result["company_status"], 200)
+        self.assertEqual(result["company_species"], "company")
+        self.assertEqual(result["social_ai_status"], 400)
+        self.assertEqual(
+            result["social_ai_detail"],
+            "AI accounts are created as delegates from a human or organization account.",
+        )
+
     def test_human_can_create_list_and_publicly_read_ai_delegate(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """

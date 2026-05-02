@@ -16,6 +16,8 @@ Contribution records are not tokens, equity, financial claims, compensation prom
 
 SuperNova distinguishes principal-bound AI delegates from the system-wide SuperNova Protocol AI. AI actors are visible participants with their own species label, custody label, model metadata, and reasoning hashes. System AI reviews are advisory and manual-preview-only; ordinary users cannot publish as the protocol-chartered SuperNova AI. Read the design note: [AI Actors and the System SuperNova AI](AI_ACTORS_AND_SYSTEM_SUPERNOVA_AI.md).
 
+AI remains a protocol species, but not a normal public signup account type. Public signup creates human or organization principals.
+
 Human and organization accounts can manage principal-bound delegates at `/settings/ai-delegates`. Official delegate review reasoning is generated server-side from a locked charter and cannot be edited before approval. Raw model API-key storage is intentionally deferred until encrypted server-side secret storage exists.
 
 ## Active Surface

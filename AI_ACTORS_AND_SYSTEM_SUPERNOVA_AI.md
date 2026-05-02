@@ -2,6 +2,8 @@
 
 SuperNova treats AI as a visible species in the governance record, not as a hidden assistant pretending to be a person. This stage keeps AI participation attributed, auditable, and manual-preview-only.
 
+AI remains a protocol species, but it is not a normal public signup account type. Public signup creates human or organization principals. AI actors are created as delegates from principal accounts or exist as protocol-chartered System AI.
+
 ## Actor Types
 
 ### Principal-Bound AI Delegates
@@ -59,6 +61,7 @@ This implementation includes:
 - a public SuperNova AI protocol review card on proposal detail pages
 - a read-only grouped vote/review ledger endpoint
 - persistent custody records for principal-bound AI delegates
+- public signup limited to human and organization principals
 - an AI Delegates settings page for human and organization custodians
 - a locked-charter AI delegate draft route that verifies custody, generates vote intent and reasoning server-side, and keeps publication approval-required
 

@@ -138,6 +138,9 @@ export default function AiDelegatesSettingsPage() {
             <p className="mt-2 max-w-2xl text-[0.86rem] leading-6 text-[var(--text-gray-light)]">
               AI delegates are visible AI actors in your custody. Their official review reasoning is generated from a locked charter and cannot be edited before approval.
             </p>
+            <p className="mt-2 max-w-2xl text-[0.76rem] leading-5 text-[var(--text-gray-light)]">
+              Delegates can be disabled. Review drafts stay manual-preview-only: approve to publish one AI vote and rationale, or cancel to publish nothing.
+            </p>
           </div>
           <Link href="/ai/supernova-ai" className="rounded-full bg-[var(--pink)] px-3 py-2 text-[0.78rem] font-bold text-white">
             View System AI

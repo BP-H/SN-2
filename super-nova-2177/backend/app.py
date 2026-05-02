@@ -1475,6 +1475,23 @@ def _normalize_species(value: Optional[str]) -> str:
     return species
 
 
+STANDALONE_AI_SIGNUP_MESSAGE = "AI accounts are created as delegates from a human or organization account."
+
+
+def _normalize_public_principal_species(value: Optional[str]) -> str:
+    species = _normalize_species(value or "human")
+    if species == "ai":
+        raise HTTPException(status_code=400, detail=STANDALONE_AI_SIGNUP_MESSAGE)
+    return species
+
+
+def _normalize_profile_principal_species(value: Optional[str], current_species: Optional[str] = None) -> str:
+    species = _normalize_species(value or current_species or "human")
+    if species == "ai" and (current_species or "").strip().lower() != "ai":
+        raise HTTPException(status_code=400, detail=STANDALONE_AI_SIGNUP_MESSAGE)
+    return species
+
+
 def _species_for_username(db: Session, username: str, fallback: Optional[str] = None) -> str:
     """Resolve species from the saved account before trusting browser payloads."""
     fallback_species = _normalize_species(fallback or "human")
@@ -2656,7 +2673,7 @@ def register_user(payload: RegisterUserIn, db: Session = Depends(get_db)):
     if not username:
         raise HTTPException(status_code=400, detail="Username is required")
 
-    species = _normalize_species(payload.species)
+    species = _normalize_public_principal_species(payload.species)
     existing = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == username.lower()).first()
     if existing:
         raise HTTPException(status_code=409, detail="Username already exists")
@@ -2767,10 +2784,13 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
     )
     avatar_url = (payload.avatar_url or "").strip()
     species = None
+    standalone_ai_requested = False
     if payload.species:
         try:
-            species = _normalize_species(payload.species)
-        except HTTPException:
+            species = _normalize_public_principal_species(payload.species)
+        except HTTPException as exc:
+            if getattr(exc, "detail", "") == STANDALONE_AI_SIGNUP_MESSAGE:
+                standalone_ai_requested = True
             species = None
 
     if not username:
@@ -2822,6 +2842,9 @@ def sync_social_auth(payload: SocialAuthSyncIn, db: Session = Depends(get_db)):
             "backend": "supernovacore",
             **_auth_fields_for_user(existing),
         }
+
+    if standalone_ai_requested:
+        raise HTTPException(status_code=400, detail=STANDALONE_AI_SIGNUP_MESSAGE)
 
     candidate = username
     suffix = 2
@@ -5174,7 +5197,7 @@ def update_profile(
     old_species = getattr(user, "species", "human") or "human"
     species_changed = False
     if payload.species is not None:
-        next_species = _normalize_species(payload.species)
+        next_species = _normalize_profile_principal_species(payload.species, old_species)
         species_changed = next_species != old_species
         user.species = next_species
 

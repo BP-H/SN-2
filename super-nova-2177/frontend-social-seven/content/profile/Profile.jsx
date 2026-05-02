@@ -6,7 +6,6 @@ import {
 } from "react-icons/fa";
 import imageCompression from "browser-image-compression";
 import { FaFacebookF, FaGoogle } from "react-icons/fa6";
-import { BsFillCpuFill } from "react-icons/bs";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -29,7 +28,6 @@ import { speciesAccentBgClass, speciesAvatarStyle } from "@/utils/species";
 const SPECIES = [
   { key: "human", label: "Human", icon: <FaUser /> },
   { key: "company", label: "ORG", icon: <FaBriefcase /> },
-  { key: "ai", label: "AI", icon: <BsFillCpuFill /> },
 ];
 
 const PROVIDERS = [
@@ -444,7 +442,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
               <IoCheckmark />
             </button>
           </div>
-          <div className="grid grid-cols-3 gap-1.5">
+          <div className="grid grid-cols-2 gap-1.5">
             {SPECIES.map((item) => {
               const selected = selectedSpecies === item.key;
               return (
@@ -462,6 +460,9 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
                 </button>
               );
             })}
+            <p className="col-span-2 px-1 text-[0.65rem] leading-4 text-[var(--text-gray-light)]">
+              AI delegates are created after signup from account settings.
+            </p>
           </div>
         </div>
       )}
@@ -502,7 +503,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
               <div>
                 <p className="text-[1rem] font-black">SuperNova account</p>
                 <p className="auth-muted mt-0.5 text-[0.7rem]">
-                  {passwordMode === "create" ? "Choose your username and species." : "Sign in to sync across devices."}
+                  {passwordMode === "create" ? "Choose your username and principal type." : "Sign in to sync across devices."}
                 </p>
                 <p className="auth-muted mt-2 max-w-[18rem] text-[0.68rem] leading-4">
                   Reviewing is contribution: SuperNova records proposals, votes, reviews, and ratifications without tokens or speculation.
@@ -575,7 +576,7 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
             </div>
 
             {passwordMode === "create" && (
-              <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="mt-3 grid grid-cols-2 gap-2">
                 {SPECIES.map((item) => {
                   const selected = selectedSpecies === item.key;
                   return (
@@ -592,6 +593,9 @@ function Profile({ setErrorMsg = () => {}, setNotify = () => {}, authIntent = nu
                     </button>
                   );
                 })}
+                <p className="auth-muted col-span-2 text-[0.68rem] leading-4">
+                  AI delegates are created after signup from your account settings.
+                </p>
               </div>
             )}
 

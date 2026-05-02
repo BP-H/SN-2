@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { FaBriefcase, FaGithub, FaUser } from "react-icons/fa";
 import { FaFacebookF, FaGoogle } from "react-icons/fa6";
-import { BsFillCpuFill } from "react-icons/bs";
 import {
   IoClose,
   IoMailOutline,
@@ -18,7 +17,6 @@ import { speciesAccentBgClass, speciesAvatarStyle } from "@/utils/species";
 const SPECIES = [
   { key: "human", label: "Human", icon: <FaUser /> },
   { key: "company", label: "ORG", icon: <FaBriefcase /> },
-  { key: "ai", label: "AI", icon: <BsFillCpuFill /> },
 ];
 
 const PROVIDERS = [
@@ -83,7 +81,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
       return;
     }
     if (mode === "create" && !species) {
-      setError("Choose Human, ORG, or AI.");
+      setError("Choose Human or ORG. AI delegates are created after signup from account settings.");
       return;
     }
 
@@ -137,7 +135,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
             <div className="min-w-0">
               <p className="truncate text-[1rem] font-black">SuperNova account</p>
               <p className="auth-muted mt-0.5 text-[0.7rem]">
-                {mode === "create" ? "Choose your username and species." : "Sign in to sync across devices."}
+                {mode === "create" ? "Choose your username and principal type." : "Sign in to sync across devices."}
               </p>
             </div>
           </div>
@@ -205,7 +203,7 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
         </div>
 
         {mode === "create" && (
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className="mt-3 grid grid-cols-2 gap-2">
             {SPECIES.map((item) => {
               const selected = species === item.key;
               return (
@@ -222,6 +220,9 @@ export default function AccountModal({ open, initialMode = "login", onClose = ()
                 </button>
               );
             })}
+            <p className="auth-muted col-span-2 text-[0.68rem] leading-4">
+              AI delegates are created after signup from your account settings.
+            </p>
           </div>
         )}
 
@@ -296,7 +297,7 @@ export function ProfileSetupModal({ open }) {
       return;
     }
     if (!species) {
-      setError("Choose Human, ORG, or AI.");
+      setError("Choose Human or ORG. AI delegates are created after signup from account settings.");
       return;
     }
     setBusy(true);
@@ -331,7 +332,7 @@ export function ProfileSetupModal({ open }) {
             />
             <div className="min-w-0">
               <p className="truncate text-[1rem] font-black">Choose your SuperNova identity</p>
-              <p className="auth-muted mt-0.5 text-[0.7rem]">Username and species stay editable later.</p>
+              <p className="auth-muted mt-0.5 text-[0.7rem]">Username and principal type stay editable later.</p>
             </div>
           </div>
         </div>
@@ -344,7 +345,7 @@ export function ProfileSetupModal({ open }) {
           autoComplete="username"
         />
 
-        <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="mt-3 grid grid-cols-2 gap-2">
           {SPECIES.map((item) => {
             const selected = species === item.key;
             return (
@@ -361,6 +362,9 @@ export function ProfileSetupModal({ open }) {
               </button>
             );
           })}
+          <p className="auth-muted col-span-2 text-[0.68rem] leading-4">
+            AI delegates are created after signup from your account settings.
+          </p>
         </div>
 
         {error && <p className="auth-error mt-3 rounded-[0.85rem] px-3 py-2 text-[0.76rem]">{error}</p>}

@@ -95,7 +95,7 @@ export default function AiActorPage({ params }) {
           <p className="mt-1 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">
             {isSystem
               ? "SuperNova AI publishes protocol-level analysis only as an advisory review. It cannot be controlled by ordinary users and does not execute real-world actions."
-              : "AI delegate reviews are visible AI actions. Publication should remain approve/cancel only and reasoning should come from a locked charter."}
+              : "AI delegate reviews are visible AI actions. Publication remains approve/cancel only, and reasoning is generated from a locked charter."}
           </p>
         </div>
       </section>

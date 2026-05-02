@@ -24,6 +24,11 @@ function normalizeSpecies(value) {
   return SPECIES_KEYS.has(species) ? species : "";
 }
 
+function normalizePrincipalSpecies(value) {
+  const species = normalizeSpecies(value);
+  return species === "ai" ? "" : species;
+}
+
 function calculateInitials(name) {
   if (!name || !name.trim()) return "";
   const parts = name.trim().split(/\s+/);
@@ -455,12 +460,12 @@ export function UserProvider({ children }) {
 
   const syncSocialProfile = useCallback(async ({ username, species, avatar }) => {
     const cleanUsername = String(username || "").trim();
-    const accountSpecies = normalizeSpecies(species);
+    const accountSpecies = normalizePrincipalSpecies(species);
     if (!providerProfile.id || providerProfile.provider === "guest" || providerProfile.provider === "password") {
       throw new Error("Social account is not ready.");
     }
     if (!cleanUsername) throw new Error("Choose a username.");
-    if (!accountSpecies) throw new Error("Choose Human, ORG, or AI.");
+    if (!accountSpecies) throw new Error("Choose Human or ORG. AI delegates are created after signup from account settings.");
 
     const response = await fetch(`${API_BASE_URL}/auth/social/sync`, {
       method: "POST",
@@ -609,7 +614,7 @@ export function UserProvider({ children }) {
   }, [applyPasswordSession]);
 
   const registerWithPassword = useCallback(async ({ username, password, email, species }) => {
-    const accountSpecies = normalizeSpecies(species) || "human";
+    const accountSpecies = normalizePrincipalSpecies(species) || "human";
     const response = await fetch(`${API_BASE_URL}/users/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
