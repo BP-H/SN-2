@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
+import { BiSolidDislike, BiSolidLike } from "react-icons/bi";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   IoArrowUndoOutline,
@@ -12,6 +13,8 @@ import {
   IoEllipsisHorizontal,
   IoPersonAddOutline,
   IoPersonRemoveOutline,
+  IoShareSocialOutline,
+  IoSparklesOutline,
   IoTrashOutline,
 } from "react-icons/io5";
 import { API_BASE_URL } from "@/utils/apiBase";
@@ -24,15 +27,19 @@ import { useUser } from "@/content/profile/UserContext";
 
 function DisplayComments({
   commentId = "",
+  proposalId = "",
   comment,
   name,
   image,
   species = "human",
+  likes = [],
+  dislikes = [],
   canDelete = false,
   canEdit = false,
   onDelete = () => {},
   onEdit = async () => {},
   onReply = () => {},
+  onAskAi = () => {},
   replyingToName = "",
   depth = 0,
   deleting = false,
@@ -46,6 +53,9 @@ function DisplayComments({
   const [editText, setEditText] = useState(comment || "");
   const [editBusy, setEditBusy] = useState(false);
   const [followBusy, setFollowBusy] = useState(false);
+  const [voteBusy, setVoteBusy] = useState(false);
+  const [localLikes, setLocalLikes] = useState(Array.isArray(likes) ? likes : []);
+  const [localDislikes, setLocalDislikes] = useState(Array.isArray(dislikes) ? dislikes : []);
   const [followingAuthor, setFollowingAuthor] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
   const menuButtonRef = useRef(null);
@@ -75,10 +85,20 @@ function DisplayComments({
   );
   const isDeleted = name === "[deleted]";
   const showMenu = !isDeleted && Boolean(name || canDelete || canEdit);
+  const userVote = userData?.name && localLikes.some((vote) => String(vote?.voter || "").toLowerCase() === String(userData.name).toLowerCase())
+    ? "like"
+    : userData?.name && localDislikes.some((vote) => String(vote?.voter || "").toLowerCase() === String(userData.name).toLowerCase())
+    ? "dislike"
+    : "";
 
   useEffect(() => {
     setEditText(comment || "");
   }, [comment]);
+
+  useEffect(() => {
+    setLocalLikes(Array.isArray(likes) ? likes : []);
+    setLocalDislikes(Array.isArray(dislikes) ? dislikes : []);
+  }, [likes, dislikes]);
 
   useEffect(() => {
     if (!menuOpen || isSelf || !isAuthenticated || !userData?.name || !name) return undefined;
@@ -194,6 +214,69 @@ function DisplayComments({
     }
   };
 
+  const updateVoteLists = (payload, choice = "") => {
+    const nextLikes = Array.isArray(payload?.likes) ? payload.likes : [];
+    const nextDislikes = Array.isArray(payload?.dislikes) ? payload.dislikes : [];
+    setLocalLikes(nextLikes);
+    setLocalDislikes(nextDislikes);
+  };
+
+  const handleCommentVote = async (choice) => {
+    if (!commentId || voteBusy || isDeleted) return;
+    if (!isAuthenticated || !userData?.name) {
+      requireAccount();
+      return;
+    }
+    const isToggleOff = (choice === "up" && userVote === "like") || (choice === "down" && userVote === "dislike");
+    setVoteBusy(true);
+    try {
+      const endpoint = `${API_BASE_URL}/comments/${encodeURIComponent(commentId)}/votes`;
+      const response = await fetch(
+        isToggleOff ? `${endpoint}?username=${encodeURIComponent(userData.name)}` : endpoint,
+        {
+          method: isToggleOff ? "DELETE" : "POST",
+          headers: isToggleOff ? authHeaders() : authHeaders({ "Content-Type": "application/json" }),
+          body: isToggleOff
+            ? undefined
+            : JSON.stringify({
+                username: userData.name,
+                choice,
+                voter_type: userData.species || "human",
+              }),
+        }
+      );
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to vote on comment."));
+      updateVoteLists(payload, isToggleOff ? "" : choice);
+      queryClient.invalidateQueries({ queryKey: ["home-feed"] });
+      queryClient.invalidateQueries({ queryKey: ["proposals"] });
+    } catch (error) {
+      setErrorMsg([formatBackendAuthErrorMessage(error, "Unable to vote on comment.")]);
+    } finally {
+      setVoteBusy(false);
+    }
+  };
+
+  const handleShareComment = async () => {
+    if (!proposalId || !commentId || typeof window === "undefined") return;
+    const url = `${window.location.origin}/proposals/${proposalId}#comment-${commentId}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: `Comment by ${name || "SuperNova"}`, url });
+      } else {
+        await navigator.clipboard.writeText(url);
+        setNotify(["Comment link copied."]);
+      }
+    } catch {
+      try {
+        await navigator.clipboard.writeText(url);
+        setNotify(["Comment link copied."]);
+      } catch {
+        setErrorMsg(["Unable to share this comment from this browser."]);
+      }
+    }
+  };
+
   const handleSaveEdit = async () => {
     const nextText = editText.trim();
     if (!nextText) {
@@ -287,6 +370,7 @@ function DisplayComments({
   return (
     <>
     <div
+      id={commentId ? `comment-${commentId}` : undefined}
       className="comment-row flex w-full min-w-0 items-start gap-2"
       style={depthOffsetStyle}
     >
@@ -389,6 +473,63 @@ function DisplayComments({
         )}
       </div>
     </div>
+    {!isDeleted && (
+      <div className="comment-inline-actions flex w-full min-w-0" style={depthOffsetStyle}>
+        <div className="ml-11 flex min-w-0 flex-wrap items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => handleCommentVote("down")}
+            disabled={voteBusy}
+            className={`comment-action-icon ${userVote === "dislike" ? "is-dislike" : ""}`}
+            aria-label="Downvote comment"
+            title="Downvote"
+          >
+            <BiSolidDislike />
+            {localDislikes.length > 0 && <span>{localDislikes.length}</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleCommentVote("up")}
+            disabled={voteBusy}
+            className={`comment-action-icon ${userVote === "like" ? "is-like" : ""}`}
+            aria-label="Upvote comment"
+            title="Upvote"
+          >
+            <BiSolidLike />
+            {localLikes.length > 0 && <span>{localLikes.length}</span>}
+          </button>
+          {commentId && name && (
+            <button
+              type="button"
+              onClick={() => onReply({ id: commentId, user: name, comment })}
+              className="comment-action-icon"
+              aria-label="Reply to comment"
+              title="Reply"
+            >
+              <IoArrowUndoOutline />
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onAskAi({ id: commentId, user: name, comment })}
+            className="comment-action-icon"
+            aria-label="Ask AI delegate to comment"
+            title="Ask AI"
+          >
+            <IoSparklesOutline />
+          </button>
+          <button
+            type="button"
+            onClick={handleShareComment}
+            className="comment-action-icon"
+            aria-label="Share comment"
+            title="Share"
+          >
+            <IoShareSocialOutline />
+          </button>
+        </div>
+      </div>
+    )}
     {children && (
       <div className="comment-inline-reply flex w-full min-w-0" style={depthOffsetStyle}>
         <div className="ml-11 min-w-0 flex-1">

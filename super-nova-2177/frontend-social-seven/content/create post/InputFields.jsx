@@ -778,6 +778,7 @@ function InputFields({
         ? `${selectedFiles.length} selected image${selectedFiles.length === 1 ? "" : "s"}`
         : selectedFile?.name || mediaValue || "",
     image_count: mediaType === "image" ? selectedFiles.length : 0,
+    image_files: mediaType === "image" ? selectedFiles : [],
     governance_kind: isDecisionMode ? "decision" : "post",
     decision_level: isDecisionMode ? decisionLevel : "",
     voting_days: isDecisionMode ? votingDays : undefined,
@@ -904,7 +905,11 @@ function InputFields({
         target={{ title: proposalMode === "decision" ? "Decision composer" : "Post composer", text }}
         composerContext={composerAiContext}
         onClose={() => setAiComposerOpen(false)}
-        onApproved={() => {
+        onApproved={(payload) => {
+          const publishedPost = payload?.summary?.post;
+          if (publishedPost && setPosts) {
+            setPosts((oldPosts) => [publishedPost, ...(Array.isArray(oldPosts) ? oldPosts : [])]);
+          }
           setAiComposerOpen(false);
           setNotify(["AI post published as the selected delegate."]);
           refetchPosts?.();

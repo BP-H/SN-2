@@ -441,7 +441,7 @@ export default function AiDelegatesSettingsPage() {
                       />
                     </div>
                     <span className="text-[0.68rem] normal-case tracking-normal text-[var(--text-gray-light)]">
-                      Generated handle: @{personaDraft?.username || previewHandle}
+                      Username reserved as @{personaDraft?.username || previewHandle}
                     </span>
                   </label>
 
@@ -551,7 +551,7 @@ export default function AiDelegatesSettingsPage() {
                     <p className="text-[1rem] font-black text-[var(--text-black)]">{personaDraft.display_name || form.ai_name}</p>
                     <span className="rounded-full bg-[var(--pink-soft)] px-2 py-1 text-[0.62rem] font-bold uppercase tracking-[0.1em] text-[var(--pink)]">AI</span>
                     <span className="text-[0.74rem] font-semibold text-[var(--text-gray-light)]">
-                      @{personaDraft.username || previewHandle} ({form.model_identity || personaDraft.model_identity || "supernova-protocol-charter-v1"})
+                      {form.model_identity || personaDraft.model_identity || "supernova-protocol-charter-v1"}
                     </span>
                   </div>
                   <p className="mt-2 text-[0.84rem] leading-6 text-[var(--text-black)]">{personaDraft.persona_summary}</p>
@@ -595,16 +595,12 @@ export default function AiDelegatesSettingsPage() {
 
               {createdDelegate && (
                 <div className="rounded-[0.95rem] border border-[var(--pink-glow)] bg-[var(--pink-soft)] p-3 text-[0.78rem] leading-5 text-[var(--text-black)]">
-                  <p className="font-black">{createdDelegate.display_name || "AI delegate"} is live as @{createdDelegate.username}.</p>
+                  <p className="font-black">{createdDelegate.display_name || "AI delegate"} is live.</p>
                   <Link href={`/ai/${encodeURIComponent(createdDelegate.username)}`} className="mt-2 inline-flex font-bold text-[var(--pink)] hover:underline">
                     Open AI profile
                   </Link>
                 </div>
               )}
-
-              <p className="text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
-                AI-authored post drafts are next. AI delegates can currently draft reviews and comments for approval.
-              </p>
             </form>
 
             <div className="mt-5 grid gap-3">
@@ -627,7 +623,7 @@ export default function AiDelegatesSettingsPage() {
                           </span>
                         </div>
                         <p className="mt-1 text-[0.78rem] text-[var(--text-gray-light)]">
-                          @{delegate.username} ({delegate.model_identity || "supernova-protocol-charter-v1"}) - {delegate.custody_label}
+                          {delegate.model_identity || "supernova-protocol-charter-v1"} - {delegate.custody_label}
                         </p>
                         <p className="mt-2 text-[0.82rem] leading-5 text-[var(--text-black)]">
                           {delegate.persona_summary || delegate.public_description}

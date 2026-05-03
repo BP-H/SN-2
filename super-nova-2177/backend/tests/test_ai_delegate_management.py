@@ -573,6 +573,64 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertEqual(result["invalid_persona"]["model_identity"], "mock-gpt-mini")
         self.assertEqual(result["call_count"], 4)
 
+    def test_openai_generation_helper_sends_public_and_attached_images_server_side(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            os.environ["OPENAI_API_KEY"] = "test-openai-key"
+            os.environ["OPENAI_MODEL"] = "mock-gpt-mini"
+            captured = {}
+
+            class FakeResponse:
+                def __enter__(self):
+                    return self
+                def __exit__(self, exc_type, exc, tb):
+                    return False
+                def read(self):
+                    return json.dumps({"choices": [{"message": {"content": json.dumps({"answer": "ok"})}}]}).encode("utf-8")
+
+            def fake_urlopen(request, timeout=0):
+                captured["body"] = json.loads(request.data.decode("utf-8"))
+                return FakeResponse()
+
+            backend_app.urllib.request.urlopen = fake_urlopen
+
+            generated = backend_app._generate_with_openai_or_fallback(
+                prompt_payload={
+                    "proposal": {"title": "Image context proposal"},
+                    "media": {"image_urls": ["https://example.test/public-image.png"]},
+                    "image_data_urls": ["data:image/png;base64,abc123"],
+                },
+                fallback={"answer": "fallback", "model_identity": "fallback-model"},
+                coerce=lambda candidate, fallback: {"answer": candidate.get("answer", fallback.get("answer"))},
+                system_prompt="Return JSON.",
+            )
+            message_content = captured["body"]["messages"][1]["content"]
+            text_part = message_content[0]["text"]
+            image_urls = [
+                part.get("image_url", {}).get("url")
+                for part in message_content
+                if part.get("type") == "image_url"
+            ]
+            result = {
+                "generated": generated,
+                "content_is_list": isinstance(message_content, list),
+                "text_part": text_part,
+                "image_urls": image_urls,
+            }
+            print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_delegate_probe(probe)
+
+        self.assertEqual(result["generated"]["generation_source"], "openai")
+        self.assertEqual(result["generated"]["model_identity"], "mock-gpt-mini")
+        self.assertTrue(result["content_is_list"])
+        self.assertIn("https://example.test/public-image.png", result["image_urls"])
+        self.assertIn("data:image/png;base64,abc123", result["image_urls"])
+        self.assertIn("[image data sent as OpenAI image_url input]", result["text_part"])
+        self.assertNotIn("data:image/png;base64,abc123", result["text_part"])
+
     def test_deterministic_fallback_uses_specific_proposal_and_media_context(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
@@ -700,6 +758,7 @@ class AiDelegateManagementTests(unittest.TestCase):
                     "media_type": "image",
                     "media_label": "ocean-sensors.png",
                     "image_count": 1,
+                    "image_data_urls": ["data:image/png;base64,abc123"],
                     "governance_kind": "decision",
                     "decision_level": "important",
                     "voting_days": 5,
@@ -721,6 +780,7 @@ class AiDelegateManagementTests(unittest.TestCase):
                     "media_type": "image",
                     "media_label": "ocean-sensors.png",
                     "image_count": 1,
+                    "image_data_urls": ["data:image/png;base64,abc123"],
                     "governance_kind": "decision",
                     "decision_level": "important",
                     "voting_days": 5,
@@ -749,6 +809,7 @@ class AiDelegateManagementTests(unittest.TestCase):
                 "approve_status": approve.status_code,
                 "summary": draft_payload.get("summary"),
                 "approve_result": approve.json().get("result"),
+                "approve_summary": approve.json().get("summary"),
                 "before": before,
                 "after_draft": after_draft,
                 "after_cancel": after_cancel,
@@ -771,6 +832,7 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("ocean sensor review", summary["generated_post_body"])
         self.assertIn("decision", summary["governance_framing"].lower())
         self.assertIn("ocean-sensors.png", summary["media_caption_guidance"])
+        self.assertIn("image content input", summary["media_caption_guidance"])
         self.assertTrue(summary["content_hash"])
         self.assertTrue(summary["context_hash"])
         self.assertEqual(summary["selected_ai_actor_id"], summary["ai_actor_id"])
@@ -781,6 +843,8 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertTrue(result["latest"]["userName"].startswith("alice-nova"))
         self.assertIn("ocean sensor review", result["latest"]["body"])
         self.assertEqual(result["approve_result"]["executed_action"], "ai_post")
+        self.assertEqual(result["approve_summary"]["post"]["author_type"], "ai")
+        self.assertEqual(result["approve_summary"]["post"]["id"], result["approve_summary"]["post_id"])
 
     def test_ai_genesis_page_uses_call_sign_flow_not_account_form_labels(self):
         page = (PROJECT_ROOT / "frontend-social-seven" / "app" / "settings" / "ai-delegates" / "page.jsx").read_text(
@@ -853,7 +917,7 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertNotIn("onApplyComposerSuggestion", composer)
         self.assertNotIn("AI suggestion applied. Edit and publish as your account when ready.", composer)
         self.assertNotIn("Generate AI review", ai_modal)
-        self.assertIn("Generate AI comment", ai_modal)
+        self.assertIn('button: "Comment"', ai_modal)
         self.assertIn("AI post ready", ai_modal)
         self.assertNotIn("Generate suggestion", ai_modal)
         self.assertNotIn("Apply to composer", ai_modal)
@@ -874,6 +938,9 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("Published as ${actorName}", ai_modal)
         self.assertIn("Canceled - nothing published.", ai_modal)
         self.assertIn("window.setTimeout(() => onClose?.()", ai_modal)
+        self.assertIn("image_data_urls", ai_modal)
+        self.assertIn("readComposerImageDataUrls", ai_modal)
+        self.assertIn("composerDraftMode", ai_modal)
         self.assertIn("connector/actions/draft-ai-delegate-review", ai_modal)
         self.assertIn("connector/actions/draft-ai-delegate-comment", ai_modal)
         self.assertIn("approve-ai-review", ai_modal)
@@ -884,6 +951,7 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("ai-delegate-action-approve", ai_modal)
         self.assertIn("ai-delegate-action-cancel", ai_modal)
         self.assertIn("data-ai-delegate-picker", ai_picker)
+        self.assertIn("pointerdown", ai_picker)
         self.assertIn("ai-delegate-picker-button", ai_picker)
         self.assertIn("ai-delegate-picker-menu", ai_picker)
         self.assertIn("onCreateDelegate", ai_picker)
@@ -897,6 +965,7 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertNotIn("Review AI Actions", assistant)
         self.assertNotIn("Request review draft", proposal_card)
         self.assertNotIn("save draft action", proposal_card.lower())
+        self.assertIn("image_files: mediaType === \"image\" ? selectedFiles : []", composer)
 
     def test_ai_ui_uses_pink_tokens_in_touched_surfaces(self):
         frontend_root = PROJECT_ROOT / "frontend-social-seven"

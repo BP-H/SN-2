@@ -230,6 +230,24 @@ function LikesDeslikes({
       if (detail.action === "dislike") {
         handleDislikeClick({ allowToggle });
       }
+      if (detail.action === "vote-recorded") {
+        const voter = detail.voter || detail.username || "AI delegate";
+        const type = detail.voter_type || detail.type || "ai";
+        const nextVote = detail.vote === "up" || detail.vote === "support" ? "like" : detail.vote === "down" || detail.vote === "oppose" ? "dislike" : "";
+        if (!nextVote || !voter) return;
+        setLikesList((items) => {
+          const filtered = items.filter((vote) => String(vote?.voter || "").toLowerCase() !== String(voter).toLowerCase());
+          const next = nextVote === "like" ? [...filtered, { voter, type }] : filtered;
+          setLikes(next.length);
+          return next;
+        });
+        setDislikesList((items) => {
+          const filtered = items.filter((vote) => String(vote?.voter || "").toLowerCase() !== String(voter).toLowerCase());
+          const next = nextVote === "dislike" ? [...filtered, { voter, type }] : filtered;
+          setDislikes(next.length);
+          return next;
+        });
+      }
     };
 
     window.addEventListener("supernova:post-action", handleCursorAction);

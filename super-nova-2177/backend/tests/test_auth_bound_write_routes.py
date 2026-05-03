@@ -828,6 +828,8 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
                 "id",
                 "parent_comment_id",
                 "proposal_id",
+                "likes",
+                "dislikes",
                 "species",
                 "user",
                 "user_img",
@@ -899,6 +901,8 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
                 "id",
                 "parent_comment_id",
                 "proposal_id",
+                "likes",
+                "dislikes",
                 "species",
                 "user",
                 "user_img",
@@ -910,7 +914,57 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
         self.assertEqual(result["public_count"], 1)
         self.assertEqual(result["public_comment"], "edited by alice")
 
-    def test_comment_delete_requires_author_or_proposal_owner_bearer_identity(self):
+    def test_comment_votes_are_auth_bound_and_publicly_serialized(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            seeded = seed_comment_target(author="alice", proposal_owner="alice")
+            comment_id = seeded["comment_id"]
+            proposal_id = seeded["proposal_id"]
+            missing = client.post(
+                f"/comments/{comment_id}/votes",
+                json={"username": "bob", "choice": "up", "voter_type": "human"},
+            )
+            wrong = client.post(
+                f"/comments/{comment_id}/votes",
+                json={"username": "bob", "choice": "up", "voter_type": "human"},
+                headers=alice_headers,
+            )
+            voted = client.post(
+                f"/comments/{comment_id}/votes",
+                json={"username": "bob", "choice": "up", "voter_type": "human"},
+                headers=bob_headers,
+            )
+            public_read = client.get(f"/comments?proposal_id={proposal_id}")
+            removed = client.delete(f"/comments/{comment_id}/votes?username=bob", headers=bob_headers)
+            public_after_remove = client.get(f"/comments?proposal_id={proposal_id}")
+            result = {
+                "missing_status": missing.status_code,
+                "wrong_status": wrong.status_code,
+                "voted_status": voted.status_code,
+                "voted_likes": voted.json().get("likes"),
+                "public_likes": public_read.json()[0].get("likes"),
+                "public_dislikes": public_read.json()[0].get("dislikes"),
+                "removed_status": removed.status_code,
+                "removed_likes": removed.json().get("likes"),
+                "public_after_remove_likes": public_after_remove.json()[0].get("likes"),
+            }
+            print("AUTH_BOUND_WRITE_ROUTES_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_auth_probe(probe)
+
+        self.assertEqual(result["missing_status"], 401)
+        self.assertEqual(result["wrong_status"], 403)
+        self.assertEqual(result["voted_status"], 200)
+        self.assertEqual(result["voted_likes"][0]["voter"], "bob")
+        self.assertEqual(result["public_likes"][0]["voter"], "bob")
+        self.assertEqual(result["public_dislikes"], [])
+        self.assertEqual(result["removed_status"], 200)
+        self.assertEqual(result["removed_likes"], [])
+        self.assertEqual(result["public_after_remove_likes"], [])
+
+    def test_comment_delete_requires_original_author_bearer_identity(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
             author_seeded = seed_comment_target(
@@ -955,7 +1009,7 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
                 "matching_author_deleted": author_payload.get("deleted"),
                 "matching_author_tombstone": author_payload.get("tombstone"),
                 "matching_owner_status": matching_owner.status_code,
-                "matching_owner_keys": sorted(owner_payload.keys()),
+                "matching_owner_detail": owner_payload.get("detail"),
                 "matching_owner_deleted": owner_payload.get("deleted"),
                 "matching_owner_tombstone": owner_payload.get("tombstone"),
                 "owner_read_status": owner_read.status_code,
@@ -977,15 +1031,12 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
         )
         self.assertTrue(result["matching_author_deleted"])
         self.assertFalse(result["matching_author_tombstone"])
-        self.assertEqual(result["matching_owner_status"], 200)
-        self.assertEqual(
-            set(result["matching_owner_keys"]),
-            {"deleted", "ok", "pruned_comment_ids", "tombstone"},
-        )
-        self.assertTrue(result["matching_owner_deleted"])
-        self.assertFalse(result["matching_owner_tombstone"])
+        self.assertEqual(result["matching_owner_status"], 403)
+        self.assertIn("original comment author", result["matching_owner_detail"])
+        self.assertIsNone(result["matching_owner_deleted"])
+        self.assertIsNone(result["matching_owner_tombstone"])
         self.assertEqual(result["owner_read_status"], 200)
-        self.assertEqual(result["owner_read_count"], 0)
+        self.assertEqual(result["owner_read_count"], 1)
 
 
 if __name__ == "__main__":

@@ -148,6 +148,7 @@ function ProposalCard({
   const [localLogo, setLocalLogo] = useState(logo || "");
   const [deletingCommentId, setDeletingCommentId] = useState(null);
   const [replyTarget, setReplyTarget] = useState(null);
+  const [aiCommentFocus, setAiCommentFocus] = useState("");
   const [localUserName, setLocalUserName] = useState(userName || "");
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [collabInviteOpen, setCollabInviteOpen] = useState(false);
@@ -232,12 +233,17 @@ function ProposalCard({
     }
   };
 
-  const openAiActionModal = (mode) => {
+  const openAiActionModal = (mode, focus = "") => {
     if (!isAuthenticated || !userData?.name) {
       openAccountModal();
       return;
     }
-    if (mode === "comment") setShowComments(true);
+    if (mode === "comment") {
+      setShowComments(true);
+      setAiCommentFocus(focus || "");
+    } else {
+      setAiCommentFocus("");
+    }
     setAiActionModalMode(mode);
   };
 
@@ -1375,15 +1381,18 @@ function ProposalCard({
                     userData?.name &&
                     String(comment.user).toLowerCase() === String(userData.name).toLowerCase()
                 );
-                const canDeleteComment = Boolean(!isDeletedComment && commentId && (isOwner || isCommentAuthor));
+                const canDeleteComment = Boolean(!isDeletedComment && commentId && isCommentAuthor);
                 return (
                   <DisplayComments
                     key={commentId || `${comment.user || "comment"}-${index}`}
                     commentId={commentId}
+                    proposalId={id}
                     name={comment.user}
                     image={comment.user_img}
                     species={comment.species}
                     comment={comment.comment}
+                    likes={comment.likes}
+                    dislikes={comment.dislikes}
                     canDelete={canDeleteComment}
                     canEdit={Boolean(!isDeletedComment && commentId && isCommentAuthor)}
                     deleting={String(deletingCommentId || "") === String(commentId)}
@@ -1392,6 +1401,10 @@ function ProposalCard({
                     onReply={(target) => {
                       setReplyTarget(target);
                       setShowComments(true);
+                    }}
+                    onAskAi={(target) => {
+                      const excerpt = String(target?.comment || "").replace(/\s+/g, " ").slice(0, 160);
+                      openAiActionModal("comment", `Respond to @${target?.user || "this comment"}: ${excerpt}`);
                     }}
                     replyingToName={parent?.user || ""}
                     depth={depth}
@@ -1421,12 +1434,24 @@ function ProposalCard({
         open={Boolean(aiActionModalMode)}
         mode={aiActionModalMode}
         target={{ id, title, text: localText, author: authorName, species: specie, media }}
+        initialFocus={aiActionModalMode === "comment" ? aiCommentFocus : ""}
         onClose={() => setAiActionModalMode("")}
         onApproved={(payload, draftAction) => {
           const publishedComment = payload?.summary?.comment;
-          if (publishedComment && typeof publishedComment === "object" && aiActionModalMode === "comment") {
+          if (publishedComment && typeof publishedComment === "object" && (aiActionModalMode === "comment" || aiActionModalMode === "review")) {
             setLocalComments((items) => [...items, publishedComment]);
             setShowComments(true);
+          }
+          if (aiActionModalMode === "review" && payload?.summary?.vote) {
+            window.dispatchEvent(new CustomEvent("supernova:post-action", {
+              detail: {
+                id,
+                action: "vote-recorded",
+                vote: payload.summary.vote,
+                voter: payload.summary.actor,
+                voter_type: payload.summary.actor_species || "ai",
+              },
+            }));
           }
           const draftPayload = draftAction?.draft_payload || {};
           const actorName =
@@ -1435,7 +1460,7 @@ function ProposalCard({
             draftPayload.ai_actor_username ||
             "AI delegate";
           setNotify?.([`Published as ${actorName}.`]);
-          queryClient.invalidateQueries({ queryKey: ["proposals"] });
+          refreshFeeds();
         }}
         onCanceled={() => {
           setNotify?.(["Canceled - nothing published."]);

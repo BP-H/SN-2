@@ -67,6 +67,7 @@ export default function AiDelegateActionModal({
   mode = "review",
   target = {},
   composerContext = {},
+  initialFocus = "",
   onClose,
   onApproved,
   onCanceled,
@@ -83,6 +84,7 @@ export default function AiDelegateActionModal({
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [createHandoffOpen, setCreateHandoffOpen] = useState(false);
+  const [composerDraftMode, setComposerDraftMode] = useState("text");
 
   useEffect(() => setMounted(true), []);
 
@@ -111,7 +113,7 @@ export default function AiDelegateActionModal({
       Icon: IoSparklesOutline,
     },
     comment: {
-      title: draftAction ? "Comment ready" : "Generate AI comment",
+      title: draftAction ? "Comment ready" : "AI comment",
       eyebrow: "AI-authored comment",
       description: "",
       button: "Comment",
@@ -142,15 +144,21 @@ export default function AiDelegateActionModal({
       ((target?.id && (isReview || isComment)) || isAiPost)
   );
   const indicators = mediaIndicators(target);
+  const composerImageAvailable = Boolean(
+    Number(composerContext.image_count || 0) > 0 ||
+      (Array.isArray(composerContext.image_files) && composerContext.image_files.length > 0) ||
+      (Array.isArray(composerContext.image_data_urls) && composerContext.image_data_urls.length > 0)
+  );
 
   useEffect(() => {
     if (!open) return;
     setDraftAction(null);
     setNotice("");
     setError("");
-    setFocus("");
+    setFocus(initialFocus || "");
+    setComposerDraftMode("text");
     setCreateHandoffOpen(false);
-  }, [open, mode, target?.id]);
+  }, [initialFocus, open, mode, target?.id]);
 
   const loadDelegates = useCallback(
     async (signal) => {
@@ -216,6 +224,27 @@ export default function AiDelegateActionModal({
     return message;
   };
 
+  const readComposerImageDataUrls = async () => {
+    const files = Array.from(composerContext.image_files || []).slice(0, 2);
+    const existing = Array.isArray(composerContext.image_data_urls) ? composerContext.image_data_urls.slice(0, 2) : [];
+    if (!files.length) return existing;
+    const readers = files.map(
+      (file) =>
+        new Promise((resolve) => {
+          if (!file || !String(file.type || "").startsWith("image/")) {
+            resolve("");
+            return;
+          }
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ""));
+          reader.onerror = () => resolve("");
+          reader.readAsDataURL(file);
+        })
+    );
+    const loaded = await Promise.all(readers);
+    return [...existing, ...loaded].filter((url) => String(url || "").startsWith("data:image/")).slice(0, 3);
+  };
+
   const generateDraft = async () => {
     if (busy || !canGenerate) return;
     setBusy(true);
@@ -224,15 +253,25 @@ export default function AiDelegateActionModal({
     setDraftAction(null);
     try {
       requireBackendAuthSession();
+      const imageDataUrls = isAiPost && composerDraftMode === "image" ? await readComposerImageDataUrls() : [];
+      const effectiveMediaType =
+        isAiPost && composerDraftMode === "image"
+          ? "image"
+          : isAiPost && composerDraftMode === "video"
+          ? "video"
+          : isAiPost && composerDraftMode === "proposal"
+          ? "proposal framing"
+          : composerContext.media_type || "";
       const body = isAiPost
         ? {
             username: userData.name,
             ...selectedDelegatePayload(selectedDelegate),
             current_text: composerContext.current_text || target.text || "",
             focus,
-            media_type: composerContext.media_type || "",
+            media_type: effectiveMediaType,
             media_label: composerContext.media_label || "",
             image_count: Number(composerContext.image_count || 0),
+            image_data_urls: imageDataUrls,
             governance_kind: composerContext.governance_kind || "post",
             decision_level: composerContext.decision_level || "",
             voting_days: composerContext.voting_days || undefined,
@@ -465,10 +504,46 @@ export default function AiDelegateActionModal({
 
             {isAiPost && !draftAction ? (
               <div className="mt-3 flex flex-wrap gap-2" aria-label="AI post context modes">
-                <span className="ai-delegate-mode-icon" title="Text"><IoDocumentTextOutline /><span className="sr-only">Text</span></span>
-                <span className="ai-delegate-mode-icon" title="Proposal framing"><IoBarChartOutline /><span className="sr-only">Proposal framing</span></span>
-                <span className="ai-delegate-mode-icon opacity-65" title="Image metadata"><IoImageOutline /><span className="sr-only">Image metadata</span></span>
-                <span className="ai-delegate-mode-icon opacity-65" title="Video metadata"><IoVideocamOutline /><span className="sr-only">Video metadata</span></span>
+                <button
+                  type="button"
+                  onClick={() => setComposerDraftMode("text")}
+                  className={`ai-delegate-mode-icon ${composerDraftMode === "text" ? "is-active" : ""}`}
+                  title="Text"
+                  aria-label="Use text context"
+                  aria-pressed={composerDraftMode === "text"}
+                >
+                  <IoDocumentTextOutline />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setComposerDraftMode("proposal")}
+                  className={`ai-delegate-mode-icon ${composerDraftMode === "proposal" ? "is-active" : ""}`}
+                  title="Proposal framing"
+                  aria-label="Use proposal framing"
+                  aria-pressed={composerDraftMode === "proposal"}
+                >
+                  <IoBarChartOutline />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setComposerDraftMode("image")}
+                  disabled={!composerImageAvailable}
+                  className={`ai-delegate-mode-icon ${composerDraftMode === "image" ? "is-active" : ""}`}
+                  title={composerImageAvailable ? "Use image context" : "Attach an image first"}
+                  aria-label="Use image context"
+                  aria-pressed={composerDraftMode === "image"}
+                >
+                  <IoImageOutline />
+                </button>
+                <button
+                  type="button"
+                  disabled
+                  className="ai-delegate-mode-icon is-disabled"
+                  title="Video context next"
+                  aria-label="Video context next"
+                >
+                  <IoVideocamOutline />
+                </button>
               </div>
             ) : isAiPost && draftAction ? (
               <div className="ai-delegate-preview-card mt-4 rounded-[1rem] p-3">

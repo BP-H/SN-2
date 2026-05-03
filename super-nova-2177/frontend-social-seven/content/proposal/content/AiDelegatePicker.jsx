@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { IoAdd, IoChevronDown, IoCheckmark } from "react-icons/io5";
 import { avatarDisplayUrl } from "@/utils/avatar";
 
@@ -34,7 +34,6 @@ function DelegateSummary({ delegate, defaultAvatar, compact = false }) {
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[0.82rem] font-black text-[var(--text-black)]">
           {delegate.display_name || delegate.username}
-          <span className="ml-1 font-semibold text-[var(--text-gray-light)]">@{delegate.username}</span>
         </span>
         <span className="mt-0.5 block truncate text-[0.68rem] font-semibold text-[var(--text-gray-light)]">
           {delegate.custody_label || "Custodied AI delegate"}
@@ -61,6 +60,7 @@ export default function AiDelegatePicker({
   disabledCount = 0,
 }) {
   const [open, setOpen] = useState(false);
+  const pickerRef = useRef(null);
   const selectedDelegate = useMemo(() => {
     if (!delegates.length) return null;
     return delegates.find((delegate) => String(delegate.id || "") === String(value || "")) || delegates[0];
@@ -69,8 +69,18 @@ export default function AiDelegatePicker({
   if (!selectedDelegate) return null;
   const canOpenMenu = delegates.length > 1 || Boolean(onCreateDelegate);
 
+  useEffect(() => {
+    if (!open) return undefined;
+    const closeOnOutsidePointer = (event) => {
+      if (!pickerRef.current || pickerRef.current.contains(event.target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer, true);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer, true);
+  }, [open]);
+
   return (
-    <div className="ai-delegate-picker" data-ai-delegate-picker>
+    <div ref={pickerRef} className="ai-delegate-picker" data-ai-delegate-picker>
       <p className="mb-2 text-[0.62rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
         AI delegate
       </p>

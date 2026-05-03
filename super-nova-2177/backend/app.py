@@ -539,6 +539,54 @@ def _find_harmonizer_by_username(db: Session, username: Optional[str]):
         return None
 
 
+def _ensure_comment_votes_table(db: Session) -> None:
+    try:
+        id_column = "INTEGER PRIMARY KEY AUTOINCREMENT" if str(DB_ENGINE_URL or "").startswith("sqlite") else "SERIAL PRIMARY KEY"
+        db.execute(text(f"""
+            CREATE TABLE IF NOT EXISTS comment_votes (
+                id {id_column},
+                comment_id INTEGER NOT NULL,
+                harmonizer_id INTEGER NOT NULL,
+                voter TEXT,
+                voter_type TEXT DEFAULT 'human',
+                vote TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(comment_id, harmonizer_id)
+            )
+        """))
+        db.execute(text("CREATE INDEX IF NOT EXISTS idx_comment_votes_comment_vote ON comment_votes (comment_id, vote)"))
+        db.execute(text("CREATE INDEX IF NOT EXISTS idx_comment_votes_harmonizer ON comment_votes (harmonizer_id)"))
+        db.commit()
+    except Exception:
+        db.rollback()
+
+
+def _comment_vote_summary(db: Session, comment_id: Optional[int]) -> Dict[str, Any]:
+    if not comment_id:
+        return {"likes": [], "dislikes": [], "total": 0}
+    try:
+        _ensure_comment_votes_table(db)
+        rows = db.execute(
+            text("SELECT voter, voter_type, vote FROM comment_votes WHERE comment_id = :comment_id ORDER BY id ASC"),
+            {"comment_id": int(comment_id)},
+        ).fetchall()
+    except Exception:
+        db.rollback()
+        return {"likes": [], "dislikes": [], "total": 0}
+
+    likes: List[Dict[str, str]] = []
+    dislikes: List[Dict[str, str]] = []
+    for row in rows:
+        data = getattr(row, "_mapping", row)
+        entry = {"voter": data["voter"], "type": data["voter_type"] or "human"}
+        if data["vote"] == "up":
+            likes.append(entry)
+        elif data["vote"] == "down":
+            dislikes.append(entry)
+    return {"likes": likes, "dislikes": dislikes, "total": len(likes) + len(dislikes)}
+
+
 def _serialize_comment_record(db: Session, comment) -> Dict:
     author_obj = None
     if CRUD_MODELS_AVAILABLE and getattr(comment, "author_id", None):
@@ -563,6 +611,7 @@ def _serialize_comment_record(db: Session, comment) -> Dict:
     )
     content = getattr(comment, "content", None) or getattr(comment, "comment", None) or ""
     deleted = str(content or "").strip() == DELETED_COMMENT_TEXT
+    vote_summary = _comment_vote_summary(db, getattr(comment, "id", None))
 
     return {
         "id": getattr(comment, "id", None),
@@ -573,6 +622,8 @@ def _serialize_comment_record(db: Session, comment) -> Dict:
         "species": "human" if deleted else species,
         "comment": "This comment was deleted." if deleted else content,
         "deleted": deleted,
+        "likes": [] if deleted else vote_summary.get("likes", []),
+        "dislikes": [] if deleted else vote_summary.get("dislikes", []),
         "created_at": _format_timestamp(getattr(comment, "created_at", None)),
     }
 
@@ -659,6 +710,32 @@ def _delete_comment_mention_links(db: Session, comment_ids: List[int]) -> None:
         message = str(exc).lower()
         table_missing = (
             "comment_mentions" in message
+            and ("no such table" in message or "does not exist" in message or "undefinedtable" in message)
+        )
+        if not table_missing:
+            raise
+
+
+def _delete_comment_vote_links(db: Session, comment_ids: List[int]) -> None:
+    clean_ids = []
+    for comment_id in comment_ids or []:
+        try:
+            clean_ids.append(int(comment_id))
+        except (TypeError, ValueError):
+            continue
+    if not clean_ids:
+        return
+    try:
+        for comment_id in clean_ids:
+            db.execute(
+                text("DELETE FROM comment_votes WHERE comment_id = :comment_id"),
+                {"comment_id": comment_id},
+            )
+    except Exception as exc:
+        db.rollback()
+        message = str(exc).lower()
+        table_missing = (
+            "comment_votes" in message
             and ("no such table" in message or "does not exist" in message or "undefinedtable" in message)
         )
         if not table_missing:
@@ -762,6 +839,17 @@ def _uploads_url(value: str) -> str:
     if media.startswith(("http://", "https://", "data:", "blob:", "/uploads/")):
         return media
     return f"/uploads/{media}"
+
+
+def _absolute_public_media_url(value: str) -> str:
+    media = _uploads_url(value)
+    if not media:
+        return ""
+    if media.startswith(("http://", "https://", "data:image/")):
+        return media
+    if media.startswith("/"):
+        return f"{PUBLIC_BASE_URL.rstrip('/')}{media}"
+    return media
 
 
 def _image_urls_from_storage(value) -> List[str]:
@@ -995,7 +1083,11 @@ def _proposal_public_context(proposal) -> Dict[str, Any]:
         "author": str(author or "unknown")[:120],
         "author_species": str(author_species or "human")[:40],
         "media": {
-            "image_urls": (media.get("images") or [])[:4],
+            "image_urls": [
+                _absolute_public_media_url(url)
+                for url in (media.get("images") or [])[:4]
+                if _absolute_public_media_url(url)
+            ],
             "video": media.get("video") or "",
             "file": media.get("file") or "",
             "link": media.get("link") or "",
@@ -1296,6 +1388,49 @@ def _with_generation_metadata(payload: Dict[str, Any], *, generation_source: str
     return result
 
 
+def _collect_openai_image_urls(value: Any, *, limit: int = 4) -> List[str]:
+    urls: List[str] = []
+
+    def visit(item: Any) -> None:
+        if len(urls) >= limit:
+            return
+        if isinstance(item, dict):
+            for key, nested in item.items():
+                key_text = str(key or "").lower()
+                if key_text in {"image_url", "image_urls", "image_data_url", "image_data_urls", "public_image_urls"}:
+                    visit(nested)
+                elif isinstance(nested, (dict, list, tuple)):
+                    visit(nested)
+            return
+        if isinstance(item, (list, tuple)):
+            for nested in item:
+                visit(nested)
+                if len(urls) >= limit:
+                    break
+            return
+        text_value = str(item or "").strip()
+        if not text_value:
+            return
+        if text_value.startswith(("http://", "https://", "data:image/")) and text_value not in urls:
+            urls.append(text_value)
+
+    visit(value)
+    return urls[:limit]
+
+
+def _redact_image_data_urls(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {key: _redact_image_data_urls(nested) for key, nested in value.items()}
+    if isinstance(value, list):
+        return [_redact_image_data_urls(item) for item in value]
+    if isinstance(value, tuple):
+        return [_redact_image_data_urls(item) for item in value]
+    text_value = str(value or "")
+    if text_value.startswith("data:image/"):
+        return "[image data sent as OpenAI image_url input]"
+    return value
+
+
 def _generate_with_openai_or_fallback(
     *,
     prompt_payload: Dict[str, Any],
@@ -1314,11 +1449,20 @@ def _generate_with_openai_or_fallback(
         )
 
     model = _ai_generation_model()
+    image_urls = _collect_openai_image_urls(prompt_payload)
+    safe_prompt_payload = _redact_image_data_urls(prompt_payload) if image_urls else prompt_payload
+    user_content: Any = _json_dumps_compact(safe_prompt_payload)
+    if image_urls:
+        user_content = [{"type": "text", "text": user_content}]
+        user_content.extend(
+            {"type": "image_url", "image_url": {"url": image_url}}
+            for image_url in image_urls
+        )
     body = {
         "model": model,
         "messages": [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": _json_dumps_compact(prompt_payload)},
+            {"role": "user", "content": user_content},
         ],
         "temperature": temperature,
         "response_format": {"type": "json_object"},
@@ -2256,6 +2400,7 @@ def _generate_ai_delegate_post_draft(
     media_type: str,
     media_label: str,
     image_count: int,
+    image_data_urls: Optional[List[str]],
     governance_kind: str,
     decision_level: str,
     voting_days: Optional[int],
@@ -2288,6 +2433,13 @@ def _generate_ai_delegate_post_draft(
         media_bits.append(clean_media_label)
     if image_total:
         media_bits.append(f"{image_total} image(s)")
+    safe_image_data_urls = [
+        str(url).strip()
+        for url in (image_data_urls or [])[:3]
+        if str(url or "").strip().startswith("data:image/")
+    ]
+    if safe_image_data_urls:
+        media_bits.append(f"{len(safe_image_data_urls)} image content input(s)")
     media_context = ", ".join(media_bits) or "no attached media"
     text_anchor = clean_text or clean_focus or "a new SuperNova post"
     governance_sentence = (
@@ -2298,9 +2450,10 @@ def _generate_ai_delegate_post_draft(
         else ""
     )
     generated_body = (
-        f"{text_anchor}\n\n"
-        f"{display_name} is posting through a {trait_text} lens: keep the record specific, visible, and reviewable. "
-        f"Name what is being proposed or observed, why it matters to humans, organizations, and AI actors, and what approval should mean."
+        f"Proposal: {text_anchor}\n\n"
+        f"Through my {trait_text} lens, I suggest turning this into a concrete public coordination step: "
+        "state the observed need, invite evidence from humans, organizations, and AI actors, then choose one small manual action that can be reviewed before anyone treats it as settled. "
+        "A useful first version would define success criteria, name likely risks, and ask participants to add counterexamples or implementation notes."
         f"{governance_sentence}"
     ).strip()
     if clean_focus:
@@ -2316,6 +2469,7 @@ def _generate_ai_delegate_post_draft(
         "media_type": clean_media_type,
         "media_label": clean_media_label,
         "image_count": image_total,
+        "image_data_urls": safe_image_data_urls,
         "governance_kind": clean_governance,
         "decision_level": clean_decision_level,
         "voting_days": vote_days,
@@ -2332,8 +2486,8 @@ def _generate_ai_delegate_post_draft(
         "action": "draft_ai_post",
         "generated_post_body": generated_body,
         "body": generated_body,
-        "generated_title": (clean_focus or clean_text or "SuperNova coordination note")[:120],
-        "title": (clean_focus or clean_text or "SuperNova coordination note")[:120],
+        "generated_title": (clean_focus or clean_text or f"{display_name} proposal for {trait_text}")[:120],
+        "title": (clean_focus or clean_text or f"{display_name} proposal for {trait_text}")[:120],
         "governance_framing": (
             f"{display_name} suggests keeping any decision language manual-preview-only and explicit about approval scope."
             if clean_governance != "post"
@@ -2383,6 +2537,9 @@ def _generate_ai_delegate_post_draft(
             "Return generated_title, generated_post_body, governance_framing, media_caption_guidance, reasoning_summary, and reasoning_text.",
             "This is official AI-authored content and must be published only after custodian approval.",
             "The custodian may approve or cancel; do not assume the custodian edits the AI text.",
+            "Make the post a constructive proposal with specific solution suggestions, not only analysis.",
+            "Ground the post in the AI actor's selected traits and profession-like domains.",
+            "If image data is present, use visible image content carefully without claiming hidden certainty.",
             "Do not claim automatic execution or binding authority.",
             "Do not include token, payout, compensation, reward, equity, or financial-return promise language.",
         ],
@@ -2539,6 +2696,12 @@ class CommentUpdateIn(BaseModel):
     comment: str
 
 
+class CommentVoteIn(BaseModel):
+    username: str
+    choice: str
+    voter_type: Optional[str] = "human"
+
+
 class RegisterUserIn(BaseModel):
     username: str
     password: str
@@ -2652,6 +2815,7 @@ class AiDelegatePostDraftIn(BaseModel):
     media_type: Optional[str] = ""
     media_label: Optional[str] = ""
     image_count: Optional[int] = 0
+    image_data_urls: List[str] = []
     governance_kind: Optional[str] = "post"
     decision_level: Optional[str] = ""
     voting_days: Optional[int] = None
@@ -5985,6 +6149,7 @@ def connector_draft_ai_delegate_post(
         media_type=payload.media_type or "",
         media_label=payload.media_label or "",
         image_count=payload.image_count or 0,
+        image_data_urls=payload.image_data_urls or [],
         governance_kind=payload.governance_kind or "post",
         decision_level=payload.decision_level or "",
         voting_days=payload.voting_days,
@@ -6190,6 +6355,7 @@ def connector_approve_ai_review_action(
         }
         db.commit()
         db.refresh(action)
+        serialized_comment = _serialize_comment_record(db, comment)
         summary = {
             "action": "approve_ai_review_action",
             "source_action": "draft_ai_review",
@@ -6206,6 +6372,7 @@ def connector_approve_ai_review_action(
             "reasoning_hash": action.result_payload.get("reasoning_hash"),
             "generation_source": action.result_payload.get("generation_source"),
             "sealed_reasoning": action.result_payload.get("sealed_reasoning"),
+            "comment": serialized_comment,
         }
         return _connector_action_response(action, summary, action.result_payload)
     except HTTPException:
@@ -6385,6 +6552,31 @@ def connector_approve_ai_post_action(
         db.commit()
         db.refresh(action)
         db.refresh(post)
+        post_author = getattr(post, "userName", "") or getattr(publish_actor, "username", "")
+        post_metadata = _profile_metadata(db, post_author)
+        serialized_post = {
+            "id": getattr(post, "id", None),
+            "title": getattr(post, "title", ""),
+            "text": getattr(post, "description", ""),
+            "userName": post_author,
+            "userInitials": (post_author[:2]).upper() if post_author else "AI",
+            "author_img": _social_avatar(getattr(post, "author_img", "") or ""),
+            "time": _format_timestamp(getattr(post, "created_at", None)),
+            "author_type": "ai",
+            "profile_url": post_metadata.get("domain_url", ""),
+            "domain_as_profile": bool(post_metadata.get("domain_as_profile", False)),
+            "likes": [],
+            "dislikes": [],
+            "comments": [],
+            "media": _media_payload(
+                getattr(post, "image", ""),
+                getattr(post, "video", ""),
+                getattr(post, "link", ""),
+                getattr(post, "file", ""),
+                getattr(post, "payload", None),
+                getattr(post, "voting_deadline", None),
+            ),
+        }
         summary = {
             "action": "approve_ai_post_action",
             "source_action": "draft_ai_post",
@@ -6398,6 +6590,7 @@ def connector_approve_ai_post_action(
             "reasoning_hash": action.result_payload.get("reasoning_hash"),
             "generation_source": action.result_payload.get("generation_source"),
             "sealed_content": action.result_payload.get("sealed_content"),
+            "post": serialized_post,
         }
         return _connector_action_response(action, summary, action.result_payload)
     except HTTPException:
@@ -9069,6 +9262,104 @@ def update_comment(
         raise HTTPException(status_code=500, detail=f"Failed to edit comment: {str(exc)}")
 
 
+@app.post("/comments/{comment_id}/votes")
+def vote_comment(
+    comment_id: int,
+    payload: CommentVoteIn,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    username = (payload.username or "").strip()
+    choice = (payload.choice or "").strip().lower()
+    if not username:
+        raise HTTPException(status_code=400, detail="username is required")
+    if choice not in {"up", "down"}:
+        raise HTTPException(status_code=400, detail="choice must be up or down")
+    _require_token_identity_match(authorization, db, username)
+
+    try:
+        _ensure_comment_votes_table(db)
+        if CRUD_MODELS_AVAILABLE:
+            comment = db.query(Comment).filter(Comment.id == comment_id).first()
+            if not comment:
+                raise HTTPException(status_code=404, detail="Comment not found")
+            if _is_deleted_comment_record(comment):
+                raise HTTPException(status_code=400, detail="Cannot vote on a deleted comment")
+            harmonizer = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == username.lower()).first()
+            if not harmonizer:
+                raise HTTPException(status_code=404, detail=f"User '{username}' not found")
+            voter_type = getattr(harmonizer, "species", None) or payload.voter_type or "human"
+            harmonizer_id = getattr(harmonizer, "id", None)
+        else:
+            row = db.execute(text("SELECT * FROM comments WHERE id = :comment_id"), {"comment_id": comment_id}).fetchone()
+            if not row:
+                raise HTTPException(status_code=404, detail="Comment not found")
+            if _is_deleted_comment_record(row):
+                raise HTTPException(status_code=400, detail="Cannot vote on a deleted comment")
+            harmonizer = _find_harmonizer_by_username(db, username)
+            if not harmonizer:
+                raise HTTPException(status_code=404, detail=f"User '{username}' not found")
+            voter_type = getattr(harmonizer, "species", None) or payload.voter_type or "human"
+            harmonizer_id = getattr(harmonizer, "id", None)
+        if not harmonizer_id:
+            raise HTTPException(status_code=404, detail=f"User '{username}' not found")
+
+        db.execute(
+            text(
+                "INSERT INTO comment_votes (comment_id, harmonizer_id, voter, voter_type, vote, created_at, updated_at) "
+                "VALUES (:comment_id, :harmonizer_id, :voter, :voter_type, :vote, :now, :now) "
+                "ON CONFLICT(comment_id, harmonizer_id) DO UPDATE SET "
+                "voter = excluded.voter, voter_type = excluded.voter_type, vote = excluded.vote, updated_at = excluded.updated_at"
+            ),
+            {
+                "comment_id": comment_id,
+                "harmonizer_id": harmonizer_id,
+                "voter": username,
+                "voter_type": str(voter_type or "human").strip().lower() or "human",
+                "vote": choice,
+                "now": datetime.datetime.utcnow(),
+            },
+        )
+        db.commit()
+        return {"ok": True, "comment_id": comment_id, "vote": choice, **_comment_vote_summary(db, comment_id)}
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to vote on comment: {str(exc)}")
+
+
+@app.delete("/comments/{comment_id}/votes")
+def remove_comment_vote(
+    comment_id: int,
+    username: str = Query(...),
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    clean_username = (username or "").strip()
+    if not clean_username:
+        raise HTTPException(status_code=400, detail="username is required")
+    _require_token_identity_match(authorization, db, clean_username)
+    try:
+        _ensure_comment_votes_table(db)
+        harmonizer = _find_harmonizer_by_username(db, clean_username)
+        if not harmonizer:
+            raise HTTPException(status_code=404, detail=f"User '{clean_username}' not found")
+        db.execute(
+            text("DELETE FROM comment_votes WHERE comment_id = :comment_id AND harmonizer_id = :harmonizer_id"),
+            {"comment_id": comment_id, "harmonizer_id": getattr(harmonizer, "id", None)},
+        )
+        db.commit()
+        return {"ok": True, "comment_id": comment_id, "removed": True, **_comment_vote_summary(db, comment_id)}
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to remove comment vote: {str(exc)}")
+
+
 @app.delete("/comments/{comment_id}")
 def delete_comment(
     comment_id: int,
@@ -9104,13 +9395,14 @@ def delete_comment(
                         owner_obj = db.query(Harmonizer).filter(Harmonizer.id == proposal.author_id).first()
                         proposal_owner = getattr(owner_obj, "username", "") if owner_obj else ""
 
-            allowed = requester in {_safe_user_key(comment_author), _safe_user_key(proposal_owner)}
+            allowed = requester == _safe_user_key(comment_author)
             if not allowed:
-                raise HTTPException(status_code=403, detail="Only the comment author or post author can delete this comment")
+                raise HTTPException(status_code=403, detail="Only the original comment author can delete this comment")
 
             child_count = db.query(Comment).filter(Comment.parent_comment_id == comment_id).count()
             if child_count:
                 _delete_comment_mention_links(db, [comment_id])
+                _delete_comment_vote_links(db, [comment_id])
                 comment.content = DELETED_COMMENT_TEXT
                 db.commit()
                 db.refresh(comment)
@@ -9123,6 +9415,7 @@ def delete_comment(
 
             parent_comment_id = getattr(comment, "parent_comment_id", None)
             _delete_comment_mention_links(db, [comment_id])
+            _delete_comment_vote_links(db, [comment_id])
             db.delete(comment)
             pruned_comment_ids = _prune_empty_deleted_comment_ancestors(db, parent_comment_id)
             db.commit()
@@ -9146,15 +9439,16 @@ def delete_comment(
             if proposal:
                 proposal_owner = getattr(proposal, "userName", "") or getattr(proposal, "author", "") or ""
 
-        allowed = requester in {_safe_user_key(comment_author), _safe_user_key(proposal_owner)}
+        allowed = requester == _safe_user_key(comment_author)
         if not allowed:
-            raise HTTPException(status_code=403, detail="Only the comment author or post author can delete this comment")
+            raise HTTPException(status_code=403, detail="Only the original comment author can delete this comment")
 
         child_count = db.execute(
             text("SELECT COUNT(*) FROM comments WHERE parent_comment_id = :comment_id"),
             {"comment_id": comment_id},
         ).scalar() or 0
         if child_count:
+            _delete_comment_vote_links(db, [comment_id])
             try:
                 db.execute(
                     text(
@@ -9182,6 +9476,7 @@ def delete_comment(
             }
 
         parent_comment_id = getattr(row, "parent_comment_id", None)
+        _delete_comment_vote_links(db, [comment_id])
         db.execute(text("DELETE FROM comments WHERE id = :comment_id"), {"comment_id": comment_id})
         pruned_comment_ids = _prune_empty_deleted_comment_ancestors(db, parent_comment_id)
         db.commit()

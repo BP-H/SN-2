@@ -202,6 +202,8 @@ class CommentsPaginationTests(unittest.TestCase):
                 "created_at",
                 "deleted",
                 "id",
+                "likes",
+                "dislikes",
                 "parent_comment_id",
                 "proposal_id",
                 "species",
