@@ -2523,6 +2523,32 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
   padding: 0.45rem;
 }
 
+.ai-delegate-genesis-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.ai-delegate-genesis-step {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--horizontal-line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.045);
+  padding: 0.24rem 0.52rem;
+  color: var(--text-gray-light);
+  font-size: 0.58rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ai-delegate-genesis-step.is-active {
+  border-color: color-mix(in srgb, var(--pink) 42%, transparent);
+  background: color-mix(in srgb, var(--pink) 10%, transparent);
+  color: var(--pink);
+}
+
 .ai-delegate-genesis-trait {
   min-width: 0;
   overflow: hidden;
@@ -2544,6 +2570,18 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
   background: color-mix(in srgb, var(--pink) 10%, transparent);
   color: var(--pink);
   transform: translateY(-1px);
+}
+
+.ai-delegate-genesis-action {
+  min-height: 2.3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border-radius: 999px;
+  padding: 0.55rem 0.8rem;
+  font-size: 0.7rem;
+  font-weight: 900;
 }
 
 .ai-delegate-picker-create {

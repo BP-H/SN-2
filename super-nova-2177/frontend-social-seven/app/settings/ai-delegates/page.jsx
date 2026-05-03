@@ -381,7 +381,8 @@ export default function AiDelegatesSettingsPage() {
             <p className="text-[0.72rem] font-black uppercase tracking-[0.14em] text-[var(--pink)]">AI Delegates</p>
             <h1 className="mt-1 text-[1.45rem] font-black text-[var(--text-black)]">AI Genesis</h1>
             <p className="mt-2 max-w-2xl text-[0.86rem] leading-6 text-[var(--text-gray-light)]">
-              Create a visible AI delegate. Custody is accountability, not ownership.
+              Create a visible AI delegate in four steps: name, traits, generated persona, approve/create.
+              Custody is accountability, not ownership.
             </p>
           </div>
           <Link href="/ai/supernova-ai" className="rounded-full border border-[var(--horizontal-line)] px-3 py-2 text-[0.78rem] font-bold text-[var(--text-black)] hover:border-[var(--pink)] hover:text-[var(--pink)]">
@@ -422,13 +423,16 @@ export default function AiDelegatesSettingsPage() {
             <form onSubmit={createDelegate} className="mt-5 grid gap-5 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.035] p-4 sm:p-5">
               <div>
                 <p className="text-[0.78rem] font-black uppercase tracking-[0.14em] text-[var(--pink)]">Create AI Delegate</p>
-                <h2 className="mt-1 text-[1.08rem] font-black text-[var(--text-black)]">Name, trait, generate, approve.</h2>
+                <h2 className="mt-1 text-[1.08rem] font-black text-[var(--text-black)]">Name the AI, choose traits, generate persona, approve.</h2>
+                <p className="mt-1 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">
+                  You choose the public AI name and 1-5 domains. The server generates the chartered persona; you approve or regenerate it.
+                </p>
               </div>
 
               <div className="grid gap-4 lg:grid-cols-[1.08fr_0.92fr]">
                 <div className="grid gap-4">
                   <label className="grid gap-1.5 text-[0.75rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">
-                    AI name / call-sign
+                    AI name
                     <div className="flex overflow-hidden rounded-[0.9rem] border border-[var(--horizontal-line)] bg-white/[0.025]">
                       <span className="flex shrink-0 items-center bg-white/[0.06] px-3 text-[0.82rem] normal-case tracking-normal text-[var(--text-gray-light)]">
                         @{custodianName} /
@@ -441,7 +445,7 @@ export default function AiDelegatesSettingsPage() {
                       />
                     </div>
                     <span className="text-[0.68rem] normal-case tracking-normal text-[var(--text-gray-light)]">
-                      Username reserved as @{personaDraft?.username || previewHandle}
+                      Generated system handle: @{personaDraft?.username || previewHandle}. The profile shows the AI by its name.
                     </span>
                   </label>
 
@@ -464,13 +468,13 @@ export default function AiDelegatesSettingsPage() {
                       className="rounded-[0.8rem] border border-[var(--horizontal-line)] bg-transparent px-3 py-2 text-[0.9rem] normal-case tracking-normal text-[var(--text-black)] outline-none"
                     />
                     <span className="text-[0.68rem] normal-case tracking-normal text-[var(--text-gray-light)]">
-                      Public runtime label only. No raw API key is stored.
+                      Public runtime label only. It does not rewrite the AI identity, and no raw API key is stored.
                     </span>
                   </label>
                 </div>
 
                 <div className="rounded-[0.95rem] border border-[var(--horizontal-line)] bg-white/[0.025] p-3">
-                  <p className="text-[0.75rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">Trait domains</p>
+                  <p className="text-[0.75rem] font-bold uppercase tracking-[0.12em] text-[var(--text-gray-light)]">Trait domains, 1-5</p>
                   <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
                     <input
                       value={traitQuery}
