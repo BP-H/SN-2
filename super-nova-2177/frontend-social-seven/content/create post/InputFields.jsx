@@ -46,6 +46,8 @@ function InputFields({
   autoFocus = false,
   autoOpenMediaType = "",
   onAutoOpenConsumed,
+  autoOpenAi = false,
+  onAutoOpenAiConsumed,
 }) {
   const { userData, defaultAvatar, isAuthenticated } = useUser();
   const queryClient = useQueryClient();
@@ -183,6 +185,12 @@ function InputFields({
       inputMap[autoOpenMediaType]?.current?.click();
     }, 80);
   }, [autoOpenMediaType, onAutoOpenConsumed]);
+
+  useEffect(() => {
+    if (!autoOpenAi) return;
+    setAiComposerOpen(true);
+    onAutoOpenAiConsumed?.();
+  }, [autoOpenAi, onAutoOpenAiConsumed]);
 
   useEffect(() => {
     setPreviewIndex(0);
@@ -775,18 +783,6 @@ function InputFields({
     voting_days: isDecisionMode ? votingDays : undefined,
   };
 
-  const applyComposerAiSuggestion = (suggestion = {}) => {
-    const nextText = suggestion.suggested_post_body || suggestion.suggested_body || suggestion.body || "";
-    if (!nextText.trim()) {
-      setNotify(["AI suggestion was empty."]);
-      return;
-    }
-    setText(nextText);
-    setAiComposerOpen(false);
-    setNotify(["AI suggestion applied. Edit and publish as your account when ready."]);
-    requestAnimationFrame(() => textAreaRef.current?.focus?.());
-  };
-
   const renderContent = () => (
     <div className="flex flex-col gap-3 text-[var(--text-black)]">
       <div className="relative">
@@ -904,11 +900,17 @@ function InputFields({
 
       <AiDelegateActionModal
         open={aiComposerOpen}
-        mode="composer_assist"
+        mode="ai_post"
         target={{ title: proposalMode === "decision" ? "Decision composer" : "Post composer", text }}
         composerContext={composerAiContext}
         onClose={() => setAiComposerOpen(false)}
-        onApplyComposerSuggestion={applyComposerAiSuggestion}
+        onApproved={() => {
+          setAiComposerOpen(false);
+          setNotify(["AI post published as the selected delegate."]);
+          refetchPosts?.();
+          queryClient.invalidateQueries({ queryKey: ["home-feed"] });
+          queryClient.invalidateQueries({ queryKey: ["proposals"] });
+        }}
       />
 
       {renderMediaPreview()}

@@ -73,6 +73,7 @@ function connectorActionLabel(actionType = "") {
   const labels = {
     draft_ai_review: "AI review draft",
     draft_ai_comment: "AI comment draft",
+    draft_ai_post: "AI post draft",
     draft_vote: "Vote draft",
     draft_comment: "Comment draft",
     draft_proposal: "Post draft",
@@ -102,6 +103,13 @@ function connectorActionPreview(action = {}) {
     const body = payload.generated_comment || payload.body || "";
     const cleanBody = String(body || "").replace(/\s+/g, " ").trim();
     return cleanBody.length > 120 ? `${cleanBody.slice(0, 120)}...` : cleanBody || "AI-authored comment draft";
+  }
+  if (action.action_type === "draft_ai_post") {
+    const body = payload.generated_post_body || payload.body || "";
+    const title = payload.generated_title || payload.title || "AI-authored post draft";
+    const cleanBody = String(body || "").replace(/\s+/g, " ").trim();
+    const preview = `${title}: ${cleanBody}`;
+    return preview.length > 120 ? `${preview.slice(0, 120)}...` : preview;
   }
   const text =
     payload.body ||
@@ -140,7 +148,7 @@ function generationSourceLabel(value) {
 
 function aiReviewDetailRows(action = {}) {
   const payload = action.draft_payload || {};
-  if (action.action_type !== "draft_ai_review" && action.action_type !== "draft_ai_comment") return [];
+  if (!["draft_ai_review", "draft_ai_comment", "draft_ai_post"].includes(action.action_type)) return [];
   const prefs = payload.autonomy_preferences && typeof payload.autonomy_preferences === "object" ? payload.autonomy_preferences : {};
   const actorName = payload.ai_actor_display_name || payload.display_name || payload.actor || payload.ai_actor_username;
   return [
@@ -151,7 +159,7 @@ function aiReviewDetailRows(action = {}) {
     payload.generation_source && ["Generation", generationSourceLabel(payload.generation_source)],
     payload.content_hash && ["Content hash", compactActionHash(payload.content_hash)],
     payload.reasoning_hash && ["Reasoning hash", compactActionHash(payload.reasoning_hash)],
-    action.action_type === "draft_ai_comment" && prefs.posts && ["Autonomy", "AI-authored content requires custodian approval"],
+    (action.action_type === "draft_ai_comment" || action.action_type === "draft_ai_post") && prefs.posts && ["Autonomy", "AI-authored content requires custodian approval"],
     action.action_type === "draft_ai_review" && prefs.reviews && ["Autonomy", prefs.reviews === "custodian_approval_required" ? "reviews require custodian approval" : prefs.reviews],
   ].filter(Boolean);
 }
@@ -607,6 +615,8 @@ export default function AssistantOrb() {
           ? `${API_BASE_URL}/connector/actions/${action.id}/approve-ai-review`
           : action.action_type === "draft_ai_comment"
           ? `${API_BASE_URL}/connector/actions/${action.id}/approve-ai-comment`
+          : action.action_type === "draft_ai_post"
+          ? `${API_BASE_URL}/connector/actions/${action.id}/approve-ai-post`
           : `${API_BASE_URL}/connector/actions/${action.id}/approve-vote`;
       const endpoint =
         reviewAction === "approve"
@@ -626,6 +636,8 @@ export default function AssistantOrb() {
           ? action.action_type === "draft_ai_review"
             ? `Published as ${connectorActionActorLabel(action)}.`
             : action.action_type === "draft_ai_comment"
+            ? `Published as ${connectorActionActorLabel(action)}.`
+            : action.action_type === "draft_ai_post"
             ? `Published as ${connectorActionActorLabel(action)}.`
             : "Vote action approved."
           : "Canceled - nothing published."
@@ -1143,8 +1155,9 @@ export default function AssistantOrb() {
                     const isVoteDraft = action.action_type === "draft_vote";
                     const isAiReviewDraft = action.action_type === "draft_ai_review";
                     const isAiCommentDraft = action.action_type === "draft_ai_comment";
-                    const isAiAuthoredDraft = isAiReviewDraft || isAiCommentDraft;
-                    const isApprovableDraft = isVoteDraft || isAiReviewDraft || isAiCommentDraft;
+                    const isAiPostDraft = action.action_type === "draft_ai_post";
+                    const isAiAuthoredDraft = isAiReviewDraft || isAiCommentDraft || isAiPostDraft;
+                    const isApprovableDraft = isVoteDraft || isAiReviewDraft || isAiCommentDraft || isAiPostDraft;
                     const confidenceLabel = connectorActionConfidence(action);
                     const aiReviewRows = aiReviewDetailRows(action);
                     return (
@@ -1170,6 +1183,8 @@ export default function AssistantOrb() {
                             <p className="text-[0.68rem] font-semibold leading-5 text-[var(--text-gray-light)]">
                               {isAiReviewDraft
                                 ? "Approval publishes exactly one AI vote and one rationale comment."
+                                : isAiPostDraft
+                                ? "Approval publishes exactly one AI-authored post."
                                 : "Approval publishes exactly one AI-authored comment."}
                             </p>
                             {aiReviewRows.length > 0 && (

@@ -2201,21 +2201,30 @@ def _safe_composer_text(value: Optional[str], *, limit: int = 1800) -> str:
     return " ".join(str(value or "").split())[:limit]
 
 
-def _coerce_ai_composer_assist_generation(candidate: Dict[str, Any], fallback: Dict[str, Any]) -> Dict[str, Any]:
+def _coerce_ai_post_generation(candidate: Dict[str, Any], fallback: Dict[str, Any]) -> Dict[str, Any]:
     payload = candidate if isinstance(candidate, dict) else {}
-    suggested_body = " ".join(
+    generated_body = " ".join(
         str(
-            payload.get("suggested_post_body")
-            or payload.get("suggested_body")
+            payload.get("generated_post_body")
+            or payload.get("post_body")
+            or payload.get("suggested_post_body")
+            or payload.get("generated_body")
             or payload.get("body")
-            or fallback.get("suggested_post_body")
+            or fallback.get("generated_post_body")
             or ""
         ).split()
     )
-    if len(suggested_body) > 1200:
-        suggested_body = suggested_body[:1197].rstrip() + "..."
-    suggested_title = " ".join(
-        str(payload.get("suggested_title") or payload.get("title") or fallback.get("suggested_title") or "").split()
+    if len(generated_body) > 1200:
+        generated_body = generated_body[:1197].rstrip() + "..."
+    generated_title = " ".join(
+        str(
+            payload.get("generated_title")
+            or payload.get("post_title")
+            or payload.get("suggested_title")
+            or payload.get("title")
+            or fallback.get("generated_title")
+            or ""
+        ).split()
     )[:140]
     governance_framing = " ".join(
         str(payload.get("governance_framing") or fallback.get("governance_framing") or "").split()
@@ -2225,17 +2234,21 @@ def _coerce_ai_composer_assist_generation(candidate: Dict[str, Any], fallback: D
     )[:500]
     result = {
         **fallback,
-        "suggested_post_body": suggested_body,
-        "suggested_body": suggested_body,
-        "suggested_title": suggested_title,
+        "generated_post_body": generated_body,
+        "body": generated_body,
+        "generated_title": generated_title,
+        "title": generated_title,
         "governance_framing": governance_framing,
         "media_caption_guidance": media_caption_guidance,
     }
-    result["content_hash"] = _hash_text(suggested_body)
+    result["content_hash"] = _hash_text(generated_body)
+    result["reasoning_hash"] = result.get("reasoning_hash") or _hash_text(
+        result.get("reasoning_summary") or generated_body
+    )
     return result
 
 
-def _generate_ai_composer_assist(
+def _generate_ai_delegate_post_draft(
     *,
     actor_payload: Dict[str, Any],
     current_text: str,
@@ -2284,18 +2297,18 @@ def _generate_ai_composer_assist(
         if clean_governance and clean_governance != "post"
         else ""
     )
-    suggested_body = (
+    generated_body = (
         f"{text_anchor}\n\n"
-        f"Suggested by {display_name} through a {trait_text} lens: keep the post specific, visible, and reviewable. "
-        f"Name what is being proposed, why it matters to humans, organizations, and AI actors, and what approval should mean."
+        f"{display_name} is posting through a {trait_text} lens: keep the record specific, visible, and reviewable. "
+        f"Name what is being proposed or observed, why it matters to humans, organizations, and AI actors, and what approval should mean."
         f"{governance_sentence}"
     ).strip()
     if clean_focus:
-        suggested_body += f"\n\nFocus to weave in: {clean_focus}."
+        generated_body += f"\n\nFocus: {clean_focus}."
     if media_context != "no attached media":
-        suggested_body += f"\n\nMedia note: reference {media_context} without claiming hidden analysis."
-    if len(suggested_body) > 1000:
-        suggested_body = suggested_body[:997].rstrip() + "..."
+        generated_body += f"\n\nMedia note: reference {media_context} without claiming hidden analysis."
+    if len(generated_body) > 1000:
+        generated_body = generated_body[:997].rstrip() + "..."
 
     context_payload = {
         "current_text": clean_text,
@@ -2310,11 +2323,17 @@ def _generate_ai_composer_assist(
         "persona_hash": actor_payload.get("persona_hash") or context.get("persona_hash") or "",
     }
     context_hash = _hash_text(_json_dumps_compact(context_payload))
+    reasoning_summary = (
+        f"{display_name} generated this AI-authored post from its persona, selected traits, composer context, "
+        "and manual-preview-only SuperNova charter."
+    )
     fallback = {
-        "mode": "human_assisted_composer",
-        "suggested_post_body": suggested_body,
-        "suggested_body": suggested_body,
-        "suggested_title": (clean_focus or clean_text or "SuperNova coordination note")[:120],
+        "mode": "ai_authored_post",
+        "action": "draft_ai_post",
+        "generated_post_body": generated_body,
+        "body": generated_body,
+        "generated_title": (clean_focus or clean_text or "SuperNova coordination note")[:120],
+        "title": (clean_focus or clean_text or "SuperNova coordination note")[:120],
         "governance_framing": (
             f"{display_name} suggests keeping any decision language manual-preview-only and explicit about approval scope."
             if clean_governance != "post"
@@ -2325,7 +2344,10 @@ def _generate_ai_composer_assist(
             if media_context != "no attached media"
             else "No media caption guidance."
         ),
-        "content_hash": _hash_text(suggested_body),
+        "reasoning_summary": reasoning_summary,
+        "reasoning_text": reasoning_summary,
+        "reasoning_hash": _hash_text(reasoning_summary),
+        "content_hash": _hash_text(generated_body),
         "context_hash": context_hash,
         "model_identity": actor_payload.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY,
         "prompt_policy_version": actor_payload.get("prompt_policy_version") or SUPERNOVA_AI_PROMPT_POLICY_VERSION,
@@ -2337,13 +2359,15 @@ def _generate_ai_composer_assist(
         "ai_actor_username": actor_payload.get("ai_actor_username") or actor_payload.get("username"),
         "selected_ai_actor_id": actor_payload.get("ai_actor_id") or actor_payload.get("id"),
         "selected_ai_actor_display_name": display_name,
-        "human_assisted": True,
-        "official_ai_authored": False,
+        "human_assisted": False,
+        "official_ai_authored": True,
+        "sealed_content": True,
+        "content_source": "locked_server_charter",
         "manual_preview_only": True,
         "no_automatic_execution": True,
     }
     prompt = {
-        "task": "Generate a human-assisted composer suggestion as JSON only.",
+        "task": "Generate an approval-required AI-authored SuperNova post as JSON only.",
         "current_composer": context_payload,
         "ai_actor": {
             "display_name": display_name,
@@ -2356,9 +2380,9 @@ def _generate_ai_composer_assist(
         },
         "supernova_charter": SUPERNOVA_AI_CHARTER_TEXT,
         "rules": [
-            "Return suggested_post_body, suggested_title, governance_framing, and media_caption_guidance.",
-            "This is human-assisted writing, not official AI-authored publication.",
-            "The human may edit and publish as their own account.",
+            "Return generated_title, generated_post_body, governance_framing, media_caption_guidance, reasoning_summary, and reasoning_text.",
+            "This is official AI-authored content and must be published only after custodian approval.",
+            "The custodian may approve or cancel; do not assume the custodian edits the AI text.",
             "Do not claim automatic execution or binding authority.",
             "Do not include token, payout, compensation, reward, equity, or financial-return promise language.",
         ],
@@ -2366,10 +2390,10 @@ def _generate_ai_composer_assist(
     return _generate_with_openai_or_fallback(
         prompt_payload=prompt,
         fallback=fallback,
-        coerce=_coerce_ai_composer_assist_generation,
+        coerce=_coerce_ai_post_generation,
         system_prompt=(
-            "Return compact JSON only for human-assisted composer drafting. "
-            "Required keys: suggested_post_body, suggested_title, governance_framing, media_caption_guidance."
+            "Return compact JSON only for an approval-required AI-authored post draft. "
+            "Required keys: generated_title, generated_post_body, governance_framing, media_caption_guidance, reasoning_summary, reasoning_text."
         ),
         temperature=0.45,
     )
@@ -2618,7 +2642,7 @@ class ConnectorDraftAiDelegateCommentIn(BaseModel):
     focus: Optional[str] = ""
 
 
-class AiDelegateComposerAssistIn(BaseModel):
+class AiDelegatePostDraftIn(BaseModel):
     model_config = {"extra": "forbid"}
     username: str
     ai_actor_id: Optional[int] = None
@@ -5543,6 +5567,64 @@ def _connector_create_ai_review_comment(db: Session, *, actor, proposal, rationa
     return comment
 
 
+def _connector_create_ai_post(db: Session, *, actor, payload: Dict[str, Any]):
+    if not CRUD_MODELS_AVAILABLE or Proposal is None:
+        raise HTTPException(status_code=503, detail="Post system unavailable")
+    title = str(payload.get("generated_title") or payload.get("title") or "").strip()[:180]
+    body = str(payload.get("generated_post_body") or payload.get("body") or "").strip()
+    if not title:
+        title = f"{getattr(actor, 'username', 'AI delegate')} post"
+    if not body:
+        raise HTTPException(status_code=400, detail="AI post draft is missing generated content")
+    created_at = datetime.datetime.utcnow()
+    governance_kind = _normalize_governance_kind(payload.get("governance_kind") or "post")
+    decision_level = _normalize_decision_level(payload.get("decision_level") or "standard")
+    voting_days = _clamp_voting_days(payload.get("voting_days"))
+    voting_deadline = created_at + timedelta(days=voting_days if governance_kind == "decision" else 7)
+    proposal_payload = {
+        "media_layout": "carousel",
+        "ai_authored": True,
+        "ai_actor_id": payload.get("ai_actor_id"),
+        "ai_actor_username": payload.get("ai_actor_username"),
+        "content_hash": payload.get("content_hash"),
+        "reasoning_hash": payload.get("reasoning_hash"),
+        "generation_source": payload.get("generation_source"),
+        "manual_preview_only": True,
+    }
+    if governance_kind == "decision":
+        approval_threshold = _governance_threshold(decision_level)
+        proposal_payload.update({
+            "governance_kind": "decision",
+            "decision_level": decision_level,
+            "approval_threshold": approval_threshold,
+            "execution_mode": "manual",
+            "execution_status": "pending_vote",
+            "voting_days": voting_days,
+            "voting_deadline": _format_timestamp(voting_deadline),
+        })
+    username = getattr(actor, "username", "") or payload.get("ai_actor_username") or "ai-delegate"
+    avatar_value = getattr(actor, "profile_pic", "") or getattr(actor, "avatar_url", "") or ""
+    post = Proposal(
+        title=title,
+        description=body[:2400],
+        userName=username,
+        userInitials=(username[:2]).upper() if username else "AI",
+        author_id=getattr(actor, "id", None),
+        author_type="ai",
+        author_img=_social_avatar(avatar_value),
+        image="",
+        video="",
+        link="",
+        file="",
+        payload=proposal_payload,
+        created_at=created_at,
+        voting_deadline=voting_deadline,
+    )
+    db.add(post)
+    db.flush()
+    return post
+
+
 @app.get("/connector/actions", summary="List authenticated connector action proposals")
 def connector_list_actions(
     status: Optional[str] = Query("draft"),
@@ -5868,9 +5950,9 @@ def connector_draft_ai_delegate_comment(
         raise HTTPException(status_code=500, detail=f"Failed to draft AI delegate comment action: {str(exc)}")
 
 
-@app.post("/ai/delegates/composer-assist", summary="Generate a human-assisted composer suggestion from an AI delegate persona")
-def ai_delegate_composer_assist(
-    payload: AiDelegateComposerAssistIn,
+@app.post("/connector/actions/draft-ai-delegate-post", summary="Draft a locked-charter AI delegate post without publishing")
+def connector_draft_ai_delegate_post(
+    payload: AiDelegatePostDraftIn,
     authorization: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
@@ -5884,13 +5966,16 @@ def ai_delegate_composer_assist(
     if not actor_payload or actor_payload.get("ai_actor_type") != "principal_delegate":
         raise HTTPException(status_code=404, detail="AI delegate not found")
     if actor_payload.get("custodian_user_id") != getattr(requester, "id", None):
-        raise HTTPException(status_code=403, detail="Only the delegate custodian can request composer assist")
+        raise HTTPException(status_code=403, detail="Only the delegate custodian can request this AI post draft")
     if not actor_payload.get("active"):
         raise HTTPException(status_code=403, detail="AI delegate is disabled")
+    publish_actor = db.query(Harmonizer).filter(Harmonizer.id == actor_payload.get("harmonizer_user_id")).first()
+    if not publish_actor or (getattr(publish_actor, "species", "") or "").lower() != "ai":
+        raise HTTPException(status_code=409, detail="AI delegate identity is not publishable")
 
     actor_metadata = _ai_delegate_action_metadata(actor_payload)
     actor_metadata["ai_actor_context"] = _build_ai_actor_context(db, actor_payload)
-    suggestion = _generate_ai_composer_assist(
+    post_draft = _generate_ai_delegate_post_draft(
         actor_payload={
             **actor_metadata,
             "display_name": actor_payload.get("display_name") or actor_payload.get("username"),
@@ -5904,18 +5989,51 @@ def ai_delegate_composer_assist(
         decision_level=payload.decision_level or "",
         voting_days=payload.voting_days,
     )
-    return {
-        "ok": True,
-        "mode": "human_assisted_composer",
-        "summary": suggestion,
-        "suggestion": suggestion,
-        "safety": {
-            "no_automatic_publishing": True,
-            "official_ai_authored": False,
-            "published_as": "human_or_organization_if_user_applies_and_posts",
-            "raw_api_key_exposed": False,
-        },
+    summary = {
+        "action": "draft_ai_post",
+        "actor": getattr(publish_actor, "username", ""),
+        "actor_species": "ai",
+        **actor_metadata,
+        "approved_by_required_user_id": getattr(requester, "id", None),
+        "title": post_draft["generated_title"],
+        "body": post_draft["generated_post_body"],
+        "generated_title": post_draft["generated_title"],
+        "generated_post_body": post_draft["generated_post_body"],
+        "content_hash": post_draft["content_hash"],
+        "context_hash": post_draft.get("context_hash"),
+        "reasoning_summary": post_draft.get("reasoning_summary"),
+        "reasoning_text": post_draft.get("reasoning_text"),
+        "reasoning_hash": post_draft.get("reasoning_hash"),
+        "governance_framing": post_draft.get("governance_framing"),
+        "media_caption_guidance": post_draft.get("media_caption_guidance"),
+        "ai_actor_context": post_draft.get("ai_actor_context", {}),
+        "generation_source": post_draft.get("generation_source", "deterministic_fallback_no_key"),
+        "model_identity": post_draft.get("model_identity") or actor_metadata.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY,
+        "prompt_policy_version": post_draft.get("prompt_policy_version") or actor_metadata.get("prompt_policy_version"),
+        "charter_name": post_draft.get("charter_name") or actor_metadata.get("charter_name"),
+        "governance_kind": payload.governance_kind or "post",
+        "decision_level": payload.decision_level or "",
+        "voting_days": payload.voting_days,
+        "sealed_content": True,
+        "content_source": "locked_server_charter",
+        "approval_effect": "Publish one AI-authored post.",
     }
+    try:
+        record = _create_connector_action_draft(
+            db,
+            action_type="draft_ai_post",
+            actor_user_id=getattr(requester, "id", None),
+            target_type="ai_delegate_post",
+            target_id=None,
+            draft_payload=summary,
+        )
+        return _connector_draft_response(record, summary)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to draft AI delegate post action: {str(exc)}")
 
 
 @app.post("/connector/actions/{action_id}/approve-vote", summary="Approve and execute a drafted connector vote action")
@@ -6199,6 +6317,95 @@ def connector_approve_ai_comment_action(
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to approve AI comment action: {str(exc)}")
+
+
+@app.post("/connector/actions/{action_id}/approve-ai-post", summary="Approve and publish one AI-authored post")
+def connector_approve_ai_post_action(
+    action_id: int,
+    authorization: Optional[str] = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    if ConnectorActionProposal is None:
+        raise HTTPException(status_code=503, detail="Connector action proposals are unavailable")
+
+    actor = get_current_harmonizer(authorization, db)
+    action = db.query(ConnectorActionProposal).filter(ConnectorActionProposal.id == action_id).first()
+    if not action:
+        raise HTTPException(status_code=404, detail="Connector action proposal not found")
+    if getattr(action, "action_type", "") != "draft_ai_post":
+        raise HTTPException(status_code=400, detail="Connector action is not a draft AI post")
+    if getattr(action, "status", "") != "draft":
+        raise HTTPException(status_code=409, detail="Connector action is not in draft status")
+    if getattr(action, "actor_user_id", None) != getattr(actor, "id", None):
+        raise HTTPException(status_code=403, detail="Bearer token does not match AI delegate custodian")
+
+    payload = _connector_action_payload(getattr(action, "draft_payload", None))
+    if payload.get("custodian_id") != getattr(actor, "id", None):
+        raise HTTPException(status_code=403, detail="Only the AI delegate custodian can approve this post draft")
+    persistent_ai_actor_id = payload.get("ai_actor_id")
+    row = _get_ai_actor_row_by_id(db, persistent_ai_actor_id)
+    actor_payload = _row_to_ai_actor_payload(row)
+    if not actor_payload or actor_payload.get("custodian_user_id") != getattr(actor, "id", None):
+        raise HTTPException(status_code=403, detail="AI delegate custody no longer matches this action")
+    if not actor_payload.get("active"):
+        raise HTTPException(status_code=403, detail="AI delegate is disabled")
+    publish_actor = db.query(Harmonizer).filter(Harmonizer.id == payload.get("delegate_harmonizer_user_id")).first()
+    if not publish_actor or (getattr(publish_actor, "species", "") or "").strip().lower() != "ai":
+        raise HTTPException(status_code=409, detail="AI delegate identity is not publishable")
+
+    try:
+        post = _connector_create_ai_post(db, actor=publish_actor, payload=payload)
+        _record_proposal_mentions(db, post, getattr(post, "description", "") or "", getattr(post, "userName", ""))
+        now = datetime.datetime.utcnow()
+        action.status = "executed"
+        action.approved_at = now
+        action.executed_at = now
+        content_hash = payload.get("content_hash") or _hash_text(getattr(post, "description", "") or "")
+        action.result_payload = {
+            "proposal_id": getattr(post, "id", None),
+            "post_id": getattr(post, "id", None),
+            "actor": getattr(publish_actor, "username", ""),
+            "title": getattr(post, "title", ""),
+            "body": getattr(post, "description", ""),
+            "content_hash": content_hash,
+            "ai_actor_id": payload.get("ai_actor_id"),
+            "ai_actor_type": payload.get("ai_actor_type", "principal_delegate"),
+            "custody_label": payload.get("custody_label"),
+            "model_identity": payload.get("model_identity"),
+            "generation_source": payload.get("generation_source"),
+            "constitution_hash": payload.get("constitution_hash"),
+            "prompt_policy_version": payload.get("prompt_policy_version"),
+            "reasoning_hash": payload.get("reasoning_hash") or _hash_text(payload.get("reasoning_summary") or ""),
+            "reasoning_summary": payload.get("reasoning_summary") or "AI-authored post published.",
+            "sealed_content": bool(payload.get("sealed_content")),
+            "created_post": True,
+            "executed_action": "ai_post",
+            "summary": "AI-authored post published after explicit approval.",
+        }
+        db.commit()
+        db.refresh(action)
+        db.refresh(post)
+        summary = {
+            "action": "approve_ai_post_action",
+            "source_action": "draft_ai_post",
+            "actor": getattr(publish_actor, "username", ""),
+            "approved_by": getattr(actor, "username", ""),
+            "actor_species": "ai",
+            "proposal_id": getattr(post, "id", None),
+            "post_id": getattr(post, "id", None),
+            "title": getattr(post, "title", ""),
+            "content_hash": content_hash,
+            "reasoning_hash": action.result_payload.get("reasoning_hash"),
+            "generation_source": action.result_payload.get("generation_source"),
+            "sealed_content": action.result_payload.get("sealed_content"),
+        }
+        return _connector_action_response(action, summary, action.result_payload)
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to approve AI post action: {str(exc)}")
 
 
 @app.post("/connector/actions/draft-comment", summary="Draft a connector comment action without executing it")

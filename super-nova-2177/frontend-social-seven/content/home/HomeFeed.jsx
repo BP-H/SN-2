@@ -8,6 +8,7 @@ import {
   IoDocumentTextOutline,
   IoImageOutline,
   IoSend,
+  IoSparklesOutline,
   IoVideocamOutline,
   IoStarOutline,
 } from "react-icons/io5";
@@ -96,6 +97,7 @@ function formatCountdown(deadlineString, nowMs) {
 export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
   const [discard, setDiscard] = useState(true);
   const [pendingMediaPicker, setPendingMediaPicker] = useState("");
+  const [pendingAiOpen, setPendingAiOpen] = useState(false);
   const [systemNow, setSystemNow] = useState(() => Date.now());
 
   // Auto-open composer if navigated from a global '+' button click
@@ -139,6 +141,15 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
       return;
     }
     setPendingMediaPicker(type);
+    setDiscard(false);
+  };
+
+  const openComposerWithAi = () => {
+    if (!isAuthenticated) {
+      requireAccount("Sign in to create AI delegate posts on SuperNova.");
+      return;
+    }
+    setPendingAiOpen(true);
     setDiscard(false);
   };
 
@@ -454,6 +465,9 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
                 <button type="button" onClick={() => openComposerWithMedia("file")} className="composer-icon-button flex h-9 w-9 items-center justify-center rounded-full" aria-label="Add document">
                   <IoDocumentTextOutline className="text-[1rem]" />
                 </button>
+                <button type="button" onClick={openComposerWithAi} className="composer-icon-button flex h-9 w-9 items-center justify-center rounded-full text-[var(--pink)]" aria-label="AI post" title="AI post">
+                  <IoSparklesOutline className="text-[1rem]" />
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -479,6 +493,9 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
               setNotify={setNotify}
               autoOpenMediaType={pendingMediaPicker}
               onAutoOpenConsumed={() => setPendingMediaPicker("")}
+              autoOpenAi={pendingAiOpen}
+              onAutoOpenAiConsumed={() => setPendingAiOpen(false)}
+              refetchPosts={refetch}
             />
           )}
         </section>

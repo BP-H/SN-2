@@ -63,9 +63,9 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
 - [ ] **AI-authored comment drafts**
   - Expected: human/organization custodians can open the shared AI modal from a post comment surface, select an active delegate, generate a sealed AI-authored comment preview, and approve/cancel without editing the official AI text.
   - Quick test: create a delegate, open comments on a post, generate an AI-authored comment with a short focus, verify the modal is compact on mobile, uses the custom delegate picker, references the actual post/comment context, shows delegate/provenance/content hash/generation source metadata, approve one draft and confirm it publishes as the delegate, then cancel another and confirm nothing publishes.
-- [ ] **Composer AI assist**
-  - Expected: composer AI opens the shared modal, lets the user select or create a delegate, generates a contextual human-assisted suggestion, and applies it to the composer for normal human/organization editing and posting.
-  - Quick test: open the composer, add draft text or media metadata, click the compact AI button, generate a suggestion, apply it, edit the composer text, and publish normally; confirm nothing auto-publishes as the AI delegate.
+- [ ] **AI-authored post drafts from composer**
+  - Expected: composer AI opens the shared modal from both compact and expanded composer states, lets the user select or create a delegate, generates a sealed AI-authored post draft, and publishes as the selected AI delegate only after approval.
+  - Quick test: open the compact composer AI button, select a delegate, generate an AI post, approve it, and confirm one AI-labeled post appears. Generate another and cancel it; confirm nothing publishes.
 - [ ] **System AI advisory review**
   - Expected: proposal detail shows a SuperNova AI Review card with System AI custody, locked-policy metadata, reasoning hash, and no automatic execution.
   - Quick test: open a proposal detail page, inspect the SuperNova AI card and vote/review ledger, then confirm normal vote/comment controls still require user action.

@@ -150,6 +150,7 @@ def counts():
             "actions": db.query(ConnectorActionProposal).count(),
             "votes": db.query(backend_app.ProposalVote).count(),
             "comments": db.query(backend_app.Comment).count(),
+            "proposals": db.query(backend_app.Proposal).count(),
             "harmonizers": db.query(backend_app.Harmonizer).count(),
         }
     finally:
@@ -683,14 +684,14 @@ class AiDelegateManagementTests(unittest.TestCase):
             result["other_comment"]["generated_comment"],
         )
 
-    def test_composer_assist_generates_contextual_human_assisted_suggestion_without_publishing(self):
+    def test_ai_delegate_post_draft_requires_approval_and_publishes_as_ai_delegate(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
             created = create_delegate(ai_name="Nova", traits=["Science", "Governance"])
             delegate = created.json()["delegate"]
             before = counts()
-            assist = client.post(
-                "/ai/delegates/composer-assist",
+            draft = client.post(
+                "/connector/actions/draft-ai-delegate-post",
                 json={
                     "username": "alice",
                     "ai_actor_id": delegate["id"],
@@ -705,12 +706,54 @@ class AiDelegateManagementTests(unittest.TestCase):
                 },
                 headers=alice_headers,
             )
-            after = counts()
+            draft_payload = draft.json()
+            action_id = draft_payload.get("action_proposal", {}).get("id")
+            after_draft = counts()
+            cancel = client.post(f"/connector/actions/{action_id}/cancel", headers=alice_headers)
+            after_cancel = counts()
+            second = client.post(
+                "/connector/actions/draft-ai-delegate-post",
+                json={
+                    "username": "alice",
+                    "ai_actor_id": delegate["id"],
+                    "current_text": "Draft a post about ocean sensor review and public deployment safeguards.",
+                    "focus": "Make the decision language explicit.",
+                    "media_type": "image",
+                    "media_label": "ocean-sensors.png",
+                    "image_count": 1,
+                    "governance_kind": "decision",
+                    "decision_level": "important",
+                    "voting_days": 5,
+                },
+                headers=alice_headers,
+            )
+            second_action_id = second.json().get("action_proposal", {}).get("id")
+            approve = client.post(f"/connector/actions/{second_action_id}/approve-ai-post", headers=alice_headers)
+            after_approve = counts()
+            db = backend_app.SessionLocal()
+            try:
+                latest = db.query(backend_app.Proposal).order_by(backend_app.Proposal.id.desc()).first()
+                latest_payload = {
+                    "title": latest.title,
+                    "body": latest.description,
+                    "userName": latest.userName,
+                    "author_type": latest.author_type,
+                    "payload": latest.payload,
+                }
+            finally:
+                db.close()
             result = {
-                "status": assist.status_code,
-                "summary": assist.json().get("summary"),
+                "draft_status": draft.status_code,
+                "cancel_status": cancel.status_code,
+                "second_status": second.status_code,
+                "approve_status": approve.status_code,
+                "summary": draft_payload.get("summary"),
+                "approve_result": approve.json().get("result"),
                 "before": before,
-                "after": after,
+                "after_draft": after_draft,
+                "after_cancel": after_cancel,
+                "after_approve": after_approve,
+                "latest": latest_payload,
             }
             print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
             """
@@ -718,18 +761,26 @@ class AiDelegateManagementTests(unittest.TestCase):
 
         result = run_delegate_probe(probe)
 
-        self.assertEqual(result["status"], 200)
+        self.assertEqual(result["draft_status"], 200)
+        self.assertEqual(result["cancel_status"], 200)
+        self.assertEqual(result["second_status"], 200)
+        self.assertEqual(result["approve_status"], 200)
         summary = result["summary"]
-        self.assertEqual(summary["mode"], "human_assisted_composer")
+        self.assertEqual(summary["action"], "draft_ai_post")
         self.assertEqual(summary["generation_source"], "deterministic_fallback_no_key")
-        self.assertIn("ocean sensor review", summary["suggested_post_body"])
+        self.assertIn("ocean sensor review", summary["generated_post_body"])
         self.assertIn("decision", summary["governance_framing"].lower())
         self.assertIn("ocean-sensors.png", summary["media_caption_guidance"])
         self.assertTrue(summary["content_hash"])
         self.assertTrue(summary["context_hash"])
         self.assertEqual(summary["selected_ai_actor_id"], summary["ai_actor_id"])
-        self.assertEqual(result["before"]["votes"], result["after"]["votes"])
-        self.assertEqual(result["before"]["comments"], result["after"]["comments"])
+        self.assertEqual(result["before"]["proposals"], result["after_draft"]["proposals"])
+        self.assertEqual(result["before"]["proposals"], result["after_cancel"]["proposals"])
+        self.assertEqual(result["after_approve"]["proposals"], result["before"]["proposals"] + 1)
+        self.assertEqual(result["latest"]["author_type"], "ai")
+        self.assertTrue(result["latest"]["userName"].startswith("alice-nova"))
+        self.assertIn("ocean sensor review", result["latest"]["body"])
+        self.assertEqual(result["approve_result"]["executed_action"], "ai_post")
 
     def test_ai_genesis_page_uses_call_sign_flow_not_account_form_labels(self):
         page = (PROJECT_ROOT / "frontend-social-seven" / "app" / "settings" / "ai-delegates" / "page.jsx").read_text(
@@ -771,6 +822,12 @@ class AiDelegateManagementTests(unittest.TestCase):
         composer = (
             PROJECT_ROOT / "frontend-social-seven" / "content" / "create post" / "InputFields.jsx"
         ).read_text(encoding="utf-8")
+        home_feed = (
+            PROJECT_ROOT / "frontend-social-seven" / "content" / "home" / "HomeFeed.jsx"
+        ).read_text(encoding="utf-8")
+        proposal_feed = (
+            PROJECT_ROOT / "frontend-social-seven" / "content" / "proposal" / "Proposal.jsx"
+        ).read_text(encoding="utf-8")
 
         self.assertIn("generationSourceLabel", assistant)
         self.assertIn("payload.generation_source", assistant)
@@ -784,19 +841,28 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn('mode={aiActionModalMode}', proposal_card)
         self.assertIn("openAiActionModal", proposal_card)
         self.assertIn("Published as ${actorName}", proposal_card)
-        self.assertIn('mode="composer_assist"', composer)
+        self.assertIn('mode="ai_post"', composer)
         self.assertIn('aria-label="AI"', composer)
+        self.assertIn("autoOpenAi", composer)
         self.assertIn("composerContext={composerAiContext}", composer)
-        self.assertIn("onApplyComposerSuggestion", composer)
-        self.assertIn("AI suggestion applied. Edit and publish as your account when ready.", composer)
-        self.assertIn("Generate AI review", ai_modal)
+        self.assertIn("AI post published as the selected delegate.", composer)
+        self.assertIn("autoOpenAi={pendingAiOpen}", home_feed)
+        self.assertIn("autoOpenAi={pendingAiOpen}", proposal_feed)
+        self.assertIn('aria-label="AI post"', home_feed)
+        self.assertIn('aria-label="AI post"', proposal_feed)
+        self.assertNotIn("onApplyComposerSuggestion", composer)
+        self.assertNotIn("AI suggestion applied. Edit and publish as your account when ready.", composer)
+        self.assertNotIn("Generate AI review", ai_modal)
         self.assertIn("Generate AI comment", ai_modal)
-        self.assertIn("Generate suggestion", ai_modal)
-        self.assertIn("Apply to composer", ai_modal)
-        self.assertIn("/ai/delegates/composer-assist", ai_modal)
+        self.assertIn("AI post ready", ai_modal)
+        self.assertNotIn("Generate suggestion", ai_modal)
+        self.assertNotIn("Apply to composer", ai_modal)
+        self.assertIn("/connector/actions/draft-ai-delegate-post", ai_modal)
+        self.assertIn("approve-ai-post", ai_modal)
+        self.assertIn("AI post draft", assistant)
+        self.assertIn("Approval publishes exactly one AI-authored post.", assistant)
         self.assertIn("Review ready", ai_modal)
         self.assertIn("Comment ready", ai_modal)
-        self.assertIn("Suggestion ready", ai_modal)
         self.assertIn("AiDelegatePicker", ai_modal)
         self.assertIn("ai-delegate-modal-shell-compact", ai_modal)
         self.assertIn("ai-delegate-context-compact", ai_modal)
@@ -804,7 +870,7 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertNotIn("Post drafts deferred", ai_modal)
         self.assertIn("This AI delegate is disabled for future actions.", ai_modal)
         self.assertIn("Sign in as the delegate custodian.", ai_modal)
-        self.assertIn("Real model generation requires OPENAI_API_KEY on the backend service.", ai_modal)
+        self.assertNotIn("Real model generation requires OPENAI_API_KEY on the backend service.", ai_modal)
         self.assertIn("Published as ${actorName}", ai_modal)
         self.assertIn("Canceled - nothing published.", ai_modal)
         self.assertIn("window.setTimeout(() => onClose?.()", ai_modal)

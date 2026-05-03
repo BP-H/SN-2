@@ -2375,6 +2375,51 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
   color: var(--text-gray-light);
 }
 
+.ai-delegate-picker-line {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.ai-delegate-generate-icon,
+.ai-delegate-mode-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  border: 1px solid var(--horizontal-line);
+  background: rgba(255, 255, 255, 0.055);
+  color: var(--text-gray-light);
+}
+
+.ai-delegate-generate-icon {
+  height: 2.85rem;
+  width: 2.85rem;
+  flex-shrink: 0;
+  border-color: color-mix(in srgb, var(--pink) 52%, transparent);
+  background: var(--pink);
+  color: white;
+  box-shadow: var(--shadow-pink);
+  font-size: 1.05rem;
+}
+
+.ai-delegate-mode-icon {
+  height: 2rem;
+  width: 2rem;
+  font-size: 0.9rem;
+}
+
+.ai-delegate-generate-icon:not(:disabled):hover,
+.ai-delegate-mode-icon:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--pink) 42%, transparent);
+  color: var(--pink);
+}
+
+.ai-delegate-generate-icon:not(:disabled):hover {
+  color: white;
+}
+
 .ai-delegate-picker {
   position: relative;
 }

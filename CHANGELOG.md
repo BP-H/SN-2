@@ -4,7 +4,7 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
-- Added in-modal AI delegate creation handoff, compacted the shared AI action modal/picker for mobile, made approve/cancel close cleanly after publish/cancel, added human-assisted composer suggestions through the selected delegate persona, and routed AssistantOrb official AI review/comment actions through the shared approval modal instead of generic `/api/ai` comment fallback.
+- Added in-modal AI delegate creation handoff, compacted the shared AI action modal/picker for mobile, made approve/cancel close cleanly after publish/cancel, added approval-required AI-authored post drafts from the composer, and routed AssistantOrb official AI review/comment actions through the shared approval modal instead of generic `/api/ai` comment fallback.
 - Made AI delegate review/comment fallbacks context-aware, replaced the native delegate dropdown with a custom picker, tightened the shared modal/composer controls for mobile approval-first use, and extended FE7 backend account sessions so Messages does not expire during normal alpha use.
 - Polished the shared AI delegate modal, AI Genesis step state, AssistantOrb action copy, and proposal vote accents so the approval-first AI UI reads more consistently across FE7.
 - Unified post-card, comment, composer, and AI widget delegate entrypoints around a shared approval modal that previews generated AI reviews/comments before approve/cancel, with AI Actions remaining as the secondary inbox.
