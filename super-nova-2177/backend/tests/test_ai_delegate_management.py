@@ -646,6 +646,8 @@ class AiDelegateManagementTests(unittest.TestCase):
                     author_type="human",
                     author_id=seeded["alice_id"],
                     image=json.dumps(["ocean-robot.png"]),
+                    video="ocean-robot-demo.mp4",
+                    file="ocean-safety-notes.pdf",
                     link="https://example.test/ocean-robots",
                     voting_deadline=datetime.datetime.utcnow() + datetime.timedelta(days=1),
                 )
@@ -725,6 +727,8 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("Manual Ocean Robots", result["contextual_review"]["reasoning_summary"])
         self.assertIn("ocean sensor robot safety", result["contextual_review"]["reasoning_summary"])
         self.assertIn("image", " ".join(result["contextual_review"]["proposal_context"]["media"]["indicators"]))
+        self.assertIn("/uploads/ocean-robot-demo.mp4", result["contextual_review"]["proposal_context"]["media"]["video_url"])
+        self.assertIn("/uploads/ocean-safety-notes.pdf", result["contextual_review"]["proposal_context"]["media"]["file_url"])
         self.assertTrue(result["contextual_review"]["reasoning_hash"])
         self.assertEqual(result["contextual_comment_status"], 200)
         self.assertEqual(result["contextual_comment"]["generation_source"], "deterministic_fallback_no_key")
@@ -900,6 +904,9 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("Open AI Actions", assistant)
         self.assertIn("Published as ${connectorActionActorLabel(action)}", assistant)
         self.assertIn("Canceled - nothing published.", assistant)
+        self.assertIn("supernova:post-created", assistant)
+        self.assertIn("vote-recorded", assistant)
+        self.assertIn("comment-posted", assistant)
         self.assertIn("Fallback draft - backend AI key not configured", assistant)
         self.assertIn("AiDelegateActionModal", proposal_card)
         self.assertIn('mode={aiActionModalMode}', proposal_card)
@@ -941,6 +948,11 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("image_data_urls", ai_modal)
         self.assertIn("readComposerImageDataUrls", ai_modal)
         self.assertIn("composerDraftMode", ai_modal)
+        self.assertIn("MINI_GENESIS_TRAITS", ai_modal)
+        self.assertIn("/ai/delegates/persona-draft", ai_modal)
+        self.assertIn("Approve and create AI delegate", ai_modal)
+        self.assertIn("miniHandlePreview", ai_modal)
+        self.assertNotIn("Return here and refresh the picker", ai_modal)
         self.assertIn("connector/actions/draft-ai-delegate-review", ai_modal)
         self.assertIn("connector/actions/draft-ai-delegate-comment", ai_modal)
         self.assertIn("approve-ai-review", ai_modal)
@@ -958,6 +970,8 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("+ Create AI delegate", ai_picker)
         self.assertIn("ai-delegate-picker-create", ai_picker)
         self.assertIn('href="/settings/ai-delegates"', ai_modal)
+        self.assertIn("supernova:post-created", home_feed)
+        self.assertIn("setQueryData", home_feed)
         self.assertIn("delegate_review", assistant)
         self.assertIn("AI Review", assistant)
         self.assertIn("AI Comment", assistant)

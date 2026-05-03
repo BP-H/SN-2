@@ -66,9 +66,6 @@ export default function AiDelegatePicker({
     return delegates.find((delegate) => String(delegate.id || "") === String(value || "")) || delegates[0];
   }, [delegates, value]);
 
-  if (!selectedDelegate) return null;
-  const canOpenMenu = delegates.length > 1 || Boolean(onCreateDelegate);
-
   useEffect(() => {
     if (!open) return undefined;
     const closeOnOutsidePointer = (event) => {
@@ -78,6 +75,9 @@ export default function AiDelegatePicker({
     document.addEventListener("pointerdown", closeOnOutsidePointer, true);
     return () => document.removeEventListener("pointerdown", closeOnOutsidePointer, true);
   }, [open]);
+
+  if (!selectedDelegate) return null;
+  const canOpenMenu = delegates.length > 1 || Boolean(onCreateDelegate);
 
   return (
     <div ref={pickerRef} className="ai-delegate-picker" data-ai-delegate-picker>
