@@ -178,6 +178,26 @@ export default function HomeFeed({ setErrorMsg, setNotify, activeBE }) {
   });
   const posts = useMemo(() => postsData?.pages?.flat() || [], [postsData]);
 
+  useEffect(() => {
+    const handlePostCreated = (event) => {
+      const post = event?.detail?.post;
+      if (!post?.id) return;
+      queryClient.setQueryData(["home-feed", activeBE], (current) => {
+        if (!current?.pages?.length) return current;
+        const exists = current.pages.some((page) =>
+          Array.isArray(page) && page.some((item) => String(item?.id) === String(post.id))
+        );
+        if (exists) return current;
+        const pages = current.pages.map((page, index) =>
+          index === 0 && Array.isArray(page) ? [post, ...page] : page
+        );
+        return { ...current, pages };
+      });
+    };
+    window.addEventListener("supernova:post-created", handlePostCreated);
+    return () => window.removeEventListener("supernova:post-created", handlePostCreated);
+  }, [activeBE, queryClient]);
+
   const { data: followsData } = useQuery({
     queryKey: ["home-following", userData?.name || ""],
     enabled: Boolean(isAuthenticated && userData?.name),

@@ -777,6 +777,7 @@ html[data-theme="light"] .composer-governance-button.active {
 
 .comment-inline-actions {
   margin-top: 0.25rem;
+  justify-content: flex-end;
 }
 
 .comment-inline-reply {
@@ -2479,6 +2480,7 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
 
 .ai-delegate-picker {
   position: relative;
+  z-index: 30;
 }
 
 .ai-delegate-picker-button,
@@ -2504,8 +2506,11 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
 }
 
 .ai-delegate-picker-menu {
-  position: static;
-  z-index: 20;
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  z-index: 90;
   margin-top: 0.45rem;
   display: grid;
   gap: 0.4rem;
@@ -2516,6 +2521,29 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
   background: rgba(8, 11, 18, 0.98);
   box-shadow: 0 22px 44px rgba(0, 0, 0, 0.32), var(--shadow-pink);
   padding: 0.45rem;
+}
+
+.ai-delegate-genesis-trait {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid var(--horizontal-line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.055);
+  padding: 0.42rem 0.55rem;
+  color: var(--text-gray-light);
+  font-size: 0.64rem;
+  font-weight: 900;
+}
+
+.ai-delegate-genesis-trait:hover,
+.ai-delegate-genesis-trait:focus-visible,
+.ai-delegate-genesis-trait.is-active {
+  border-color: color-mix(in srgb, var(--pink) 44%, transparent);
+  background: color-mix(in srgb, var(--pink) 10%, transparent);
+  color: var(--pink);
+  transform: translateY(-1px);
 }
 
 .ai-delegate-picker-create {
@@ -2667,6 +2695,7 @@ html[data-theme="light"] .ai-delegate-picker-menu {
   }
 
   .ai-delegate-picker-menu {
+    position: static;
     max-height: 30dvh;
   }
 }

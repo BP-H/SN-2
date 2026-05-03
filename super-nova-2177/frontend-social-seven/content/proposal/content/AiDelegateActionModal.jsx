@@ -62,6 +62,55 @@ function delegatePublishName(summary = {}, fallbackDelegate = {}) {
   );
 }
 
+const MINI_GENESIS_TRAITS = [
+  "Science",
+  "Art",
+  "Technology",
+  "Governance",
+  "AI Safety",
+  "Climate",
+  "Education",
+  "Design",
+  "Law",
+  "Medicine",
+  "Ethics",
+  "Architecture",
+  "Biology",
+  "Physics",
+  "Mathematics",
+  "Space",
+  "Media",
+  "Journalism",
+  "Community",
+  "Accessibility",
+  "Security",
+  "Open Source",
+  "Diplomacy",
+  "Culture",
+  "Games",
+  "Film",
+  "Urbanism",
+  "Agriculture",
+  "Energy",
+  "Human Rights",
+  "Protocol Research",
+];
+
+function miniSlug(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/[-_]{2,}/g, "-")
+    .replace(/^[-_]+|[-_]+$/g, "");
+}
+
+function miniHandlePreview(custodianName, aiName) {
+  const custodian = miniSlug(custodianName).slice(0, 14) || "principal";
+  const delegate = miniSlug(aiName).slice(0, 10) || "nova";
+  return `${custodian}-${delegate}`.slice(0, 28).replace(/^[-_]+|[-_]+$/g, "");
+}
+
 export default function AiDelegateActionModal({
   open,
   mode = "review",
@@ -85,6 +134,13 @@ export default function AiDelegateActionModal({
   const [error, setError] = useState("");
   const [createHandoffOpen, setCreateHandoffOpen] = useState(false);
   const [composerDraftMode, setComposerDraftMode] = useState("text");
+  const [genesisName, setGenesisName] = useState("");
+  const [genesisSeed, setGenesisSeed] = useState("");
+  const [genesisTraitQuery, setGenesisTraitQuery] = useState("");
+  const [genesisTraits, setGenesisTraits] = useState([]);
+  const [genesisDraft, setGenesisDraft] = useState(null);
+  const [genesisBusy, setGenesisBusy] = useState("");
+  const [genesisError, setGenesisError] = useState("");
 
   useEffect(() => setMounted(true), []);
 
@@ -100,6 +156,14 @@ export default function AiDelegateActionModal({
       activeDelegates[0]
     );
   }, [activeDelegates, selectedDelegateId]);
+  const filteredGenesisTraits = useMemo(() => {
+    const query = genesisTraitQuery.trim().toLowerCase();
+    const pool = query
+      ? MINI_GENESIS_TRAITS.filter((trait) => trait.toLowerCase().includes(query))
+      : MINI_GENESIS_TRAITS;
+    const selected = genesisTraits.filter((trait) => !pool.includes(trait));
+    return [...selected, ...pool].slice(0, query ? 18 : 24);
+  }, [genesisTraitQuery, genesisTraits]);
 
   const modeConfig = {
     review: {
@@ -158,6 +222,13 @@ export default function AiDelegateActionModal({
     setFocus(initialFocus || "");
     setComposerDraftMode("text");
     setCreateHandoffOpen(false);
+    setGenesisName("");
+    setGenesisSeed("");
+    setGenesisTraitQuery("");
+    setGenesisTraits([]);
+    setGenesisDraft(null);
+    setGenesisBusy("");
+    setGenesisError("");
   }, [initialFocus, open, mode, target?.id]);
 
   const loadDelegates = useCallback(
@@ -222,6 +293,92 @@ export default function AiDelegateActionModal({
     if (/AI delegate is disabled/i.test(message)) return "This AI delegate is disabled for future actions.";
     if (/proposal.*not found|unknown proposal/i.test(message)) return "That post is no longer available.";
     return message;
+  };
+
+  const toggleGenesisTrait = (trait) => {
+    setGenesisError("");
+    setGenesisDraft(null);
+    setGenesisTraits((current) => {
+      if (current.includes(trait)) return current.filter((item) => item !== trait);
+      if (current.length >= 5) {
+        setGenesisError("Choose up to five traits.");
+        return current;
+      }
+      return [...current, trait];
+    });
+  };
+
+  const generateGenesisPersona = async () => {
+    if (genesisBusy) return;
+    const aiName = genesisName.trim();
+    if (!aiName) {
+      setGenesisError("Give the AI a call-sign.");
+      return;
+    }
+    if (genesisTraits.length < 1) {
+      setGenesisError("Choose at least one trait.");
+      return;
+    }
+    setGenesisBusy("generate");
+    setGenesisError("");
+    try {
+      requireBackendAuthSession();
+      const response = await fetch(`${API_BASE_URL}/ai/delegates/persona-draft`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          ai_name: aiName,
+          traits: genesisTraits,
+          human_seed: genesisSeed,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.detail || "Unable to generate persona.");
+      setGenesisDraft(payload.persona || null);
+    } catch (err) {
+      setGenesisError(cleanError(err, "Unable to generate persona."));
+    } finally {
+      setGenesisBusy("");
+    }
+  };
+
+  const approveGenesisDelegate = async () => {
+    if (genesisBusy) return;
+    if (!genesisDraft) {
+      await generateGenesisPersona();
+      return;
+    }
+    setGenesisBusy("approve");
+    setGenesisError("");
+    try {
+      requireBackendAuthSession();
+      const response = await fetch(`${API_BASE_URL}/ai/delegates`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({
+          ai_name: genesisName.trim(),
+          persona_traits: genesisTraits,
+          human_seed: genesisSeed,
+          persona_draft: genesisDraft,
+        }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.detail || "Unable to create AI delegate.");
+      const created = payload.delegate;
+      await loadDelegates();
+      if (created?.id) setSelectedDelegateId(String(created.id));
+      setCreateHandoffOpen(false);
+      setNotice(`${created?.display_name || genesisName.trim()} is ready.`);
+      setGenesisName("");
+      setGenesisSeed("");
+      setGenesisTraitQuery("");
+      setGenesisTraits([]);
+      setGenesisDraft(null);
+    } catch (err) {
+      setGenesisError(cleanError(err, "Unable to create AI delegate."));
+    } finally {
+      setGenesisBusy("");
+    }
   };
 
   const readComposerImageDataUrls = async () => {
@@ -349,22 +506,128 @@ export default function AiDelegateActionModal({
   const Icon = modeConfig.Icon || IoSparklesOutline;
   const showHeaderTitle = Boolean(draftAction);
   const createDelegateCard = (
-    <div className="ai-delegate-create-card mt-4 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.045] p-3">
-      <p className="text-[0.88rem] font-black text-[var(--text-black)]">Create an AI delegate</p>
-      <p className="mt-1 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">
-        AI Genesis creates a visible delegate with a call-sign, traits, and a locked persona. Return here and refresh the picker.
-      </p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Link href="/settings/ai-delegates" onClick={onClose} className="ai-delegate-primary inline-flex rounded-full px-3 py-2 text-[0.74rem] font-black">
-          Create AI delegate
+    <div className="ai-delegate-create-card mt-3 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.045] p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="text-[0.86rem] font-black text-[var(--text-black)]">AI Genesis</p>
+          <p className="text-[0.68rem] font-semibold text-[var(--text-gray-light)]">Create a delegate here, then use it right away.</p>
+        </div>
+        <Link href="/settings/ai-delegates" onClick={onClose} className="text-[0.68rem] font-black text-[var(--pink)]">
+          Full page
         </Link>
+      </div>
+      <label className="mt-3 block text-[0.62rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
+        Call-sign
+        <span className="mt-2 flex items-center gap-2 rounded-[0.9rem] border border-[var(--horizontal-line)] bg-white/[0.045] px-2.5 py-2">
+          <span className="shrink-0 rounded-full bg-white/[0.06] px-2 py-1 text-[0.68rem] normal-case tracking-normal text-[var(--text-gray-light)]">
+            @{userData?.name || "you"} /
+          </span>
+          <input
+            value={genesisName}
+            onChange={(event) => {
+              setGenesisName(event.target.value.slice(0, 48));
+              setGenesisDraft(null);
+              setGenesisError("");
+            }}
+            placeholder="Nova"
+            className="min-w-0 flex-1 bg-transparent text-[0.84rem] font-bold normal-case tracking-normal text-[var(--text-black)] outline-none"
+          />
+        </span>
+      </label>
+      <p className="mt-1 text-[0.64rem] font-semibold text-[var(--text-gray-light)]">
+        Reserved handle preview: @{miniHandlePreview(userData?.name, genesisName)}
+      </p>
+      <label className="mt-3 block text-[0.62rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
+        Traits
+        <input
+          value={genesisTraitQuery}
+          onChange={(event) => setGenesisTraitQuery(event.target.value)}
+          placeholder={`${genesisTraits.length}/5 selected - search traits`}
+          className="ai-delegate-select mt-2 w-full rounded-[0.85rem] px-3 py-2 text-[0.78rem] normal-case tracking-normal"
+        />
+      </label>
+      {genesisTraits.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {genesisTraits.map((trait) => (
+            <button
+              key={trait}
+              type="button"
+              onClick={() => toggleGenesisTrait(trait)}
+              className="ai-delegate-chip text-[0.62rem]"
+            >
+              {trait}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="mt-2 grid max-h-24 grid-cols-2 gap-1.5 overflow-y-auto pr-1 sm:grid-cols-3">
+        {filteredGenesisTraits.map((trait) => {
+          const selected = genesisTraits.includes(trait);
+          return (
+            <button
+              key={trait}
+              type="button"
+              onClick={() => toggleGenesisTrait(trait)}
+              className={`ai-delegate-genesis-trait ${selected ? "is-active" : ""}`}
+            >
+              {trait}
+            </button>
+          );
+        })}
+      </div>
+      <input
+        value={genesisSeed}
+        onChange={(event) => {
+          setGenesisSeed(event.target.value.slice(0, 240));
+          setGenesisDraft(null);
+        }}
+        placeholder="Optional seed sentence"
+        className="ai-delegate-select mt-3 w-full rounded-[0.85rem] px-3 py-2 text-[0.78rem]"
+      />
+      {genesisDraft && (
+        <div className="ai-delegate-preview-card mt-3 rounded-[0.9rem] p-3">
+          <p className="text-[0.78rem] font-black text-[var(--text-black)]">{genesisDraft.display_name || genesisName}</p>
+          <p className="mt-1 line-clamp-3 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
+            {genesisDraft.persona_summary || genesisDraft.public_description}
+          </p>
+          {genesisDraft.persona_hash && (
+            <p className="mt-2 text-[0.62rem] font-bold text-[var(--text-gray-light)]">
+              Persona: {compactHash(genesisDraft.persona_hash)}
+            </p>
+          )}
+        </div>
+      )}
+      {genesisError && <p className="ai-delegate-error mt-2 rounded-[0.8rem] px-3 py-2 text-[0.72rem] font-bold">{genesisError}</p>}
+      <div className="mt-3 flex items-center justify-between gap-2">
         <button
           type="button"
-          onClick={() => loadDelegates()}
-          className="ai-delegate-secondary rounded-full px-3 py-2 text-[0.74rem] font-black"
+          onClick={generateGenesisPersona}
+          disabled={Boolean(genesisBusy)}
+          className="ai-delegate-secondary inline-flex h-9 w-9 items-center justify-center rounded-full disabled:opacity-55"
+          title="Generate persona"
+          aria-label="Generate persona"
         >
-          Refresh delegates
+          <IoSparklesOutline />
         </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => loadDelegates()}
+            className="ai-delegate-secondary rounded-full px-3 py-2 text-[0.7rem] font-black"
+          >
+            Refresh
+          </button>
+          <button
+            type="button"
+            onClick={approveGenesisDelegate}
+            disabled={Boolean(genesisBusy) || !genesisDraft}
+            className="ai-delegate-action-icon ai-delegate-action-approve disabled:opacity-45"
+            title="Approve and create"
+            aria-label="Approve and create AI delegate"
+          >
+            <IoCheckmark />
+          </button>
+        </div>
       </div>
     </div>
   );

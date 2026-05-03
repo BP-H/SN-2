@@ -150,7 +150,7 @@ export default function AiActorPage({ params }) {
                   <Badge>{isSystem ? "System AI" : "AI Delegate"}</Badge>
                 </div>
                 <p className="mt-1 break-words text-[0.82rem] font-semibold text-[var(--text-gray-light)]">
-                  @{actor.username} ({modelLabel})
+                  {modelLabel}
                 </p>
                 <p className="mt-1 text-[0.78rem] font-bold text-[var(--pink)]">{actor.custody_label}</p>
               </div>
