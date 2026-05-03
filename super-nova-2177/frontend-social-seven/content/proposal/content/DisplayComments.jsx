@@ -475,7 +475,7 @@ function DisplayComments({
     </div>
     {!isDeleted && (
       <div className="comment-inline-actions flex w-full min-w-0" style={depthOffsetStyle}>
-        <div className="ml-11 flex min-w-0 flex-wrap items-center gap-1.5">
+        <div className="ml-11 flex w-full min-w-0 flex-wrap items-center justify-end gap-1.5">
           <button
             type="button"
             onClick={() => handleCommentVote("down")}

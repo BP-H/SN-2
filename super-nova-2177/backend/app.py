@@ -1089,7 +1089,9 @@ def _proposal_public_context(proposal) -> Dict[str, Any]:
                 if _absolute_public_media_url(url)
             ],
             "video": media.get("video") or "",
+            "video_url": _absolute_public_media_url(media.get("video") or ""),
             "file": media.get("file") or "",
+            "file_url": _absolute_public_media_url(media.get("file") or ""),
             "link": media.get("link") or "",
             "indicators": indicators,
             "governance": governance,

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 import { normalizeAvatarValue } from "@/utils/avatar";
 import { FaCommentAlt, FaShare } from "react-icons/fa";
 import {
@@ -152,7 +153,7 @@ function aiReviewDetailRows(action = {}) {
   const prefs = payload.autonomy_preferences && typeof payload.autonomy_preferences === "object" ? payload.autonomy_preferences : {};
   const actorName = payload.ai_actor_display_name || payload.display_name || payload.actor || payload.ai_actor_username;
   return [
-    actorName && ["AI delegate", `${actorName}${payload.ai_actor_username ? ` (@${payload.ai_actor_username})` : ""}`],
+    actorName && ["AI delegate", actorName],
     payload.custody_label && ["Custody", payload.custody_label],
     payload.intended_choice && ["Intended vote", payload.intended_choice],
     payload.model_identity && ["Model/policy", payload.model_identity],
@@ -191,6 +192,7 @@ function connectorActionCreatedAt(action = {}) {
 
 export default function AssistantOrb() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { userData, isAuthenticated } = useUser();
   const dockRef = useRef(null);
   const orbRef = useRef(null);
@@ -629,6 +631,41 @@ export default function AssistantOrb() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         throw new Error(formatBackendAuthErrorMessage(payload?.detail, "Unable to update AI Action."));
+      }
+      if (reviewAction === "approve") {
+        const summary = payload?.summary || {};
+        const draftPayload = action.draft_payload || {};
+        const proposalId = summary.proposal_id || draftPayload.proposal_id || action.target_id;
+        if ((action.action_type === "draft_ai_review" || action.action_type === "draft_ai_comment") && summary.comment) {
+          window.dispatchEvent(
+            new CustomEvent("supernova:post-action", {
+              detail: {
+                id: summary.comment.proposal_id || proposalId,
+                action: "comment-posted",
+                comment: summary.comment,
+              },
+            })
+          );
+        }
+        if (action.action_type === "draft_ai_review" && proposalId && summary.vote) {
+          window.dispatchEvent(
+            new CustomEvent("supernova:post-action", {
+              detail: {
+                id: proposalId,
+                action: "vote-recorded",
+                vote: summary.vote,
+                voter: summary.actor || draftPayload.ai_actor_username || connectorActionActorLabel(action),
+                voter_type: "ai",
+              },
+            })
+          );
+        }
+        if (action.action_type === "draft_ai_post" && summary.post) {
+          window.dispatchEvent(new CustomEvent("supernova:post-created", { detail: { post: summary.post } }));
+        }
+        queryClient.invalidateQueries({ queryKey: ["home-feed"] });
+        queryClient.invalidateQueries({ queryKey: ["proposals"] });
+        queryClient.invalidateQueries({ queryKey: ["ai-actions"] });
       }
       setConnectorActions((items) => items.filter((item) => item.id !== action.id));
       setConnectorActionsNotice(
