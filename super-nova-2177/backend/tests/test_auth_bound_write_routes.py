@@ -287,7 +287,7 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
             thread = client.get("/messages?user=stellar&peer=bob", headers=new_headers)
             old_token_send = client.post(
                 "/messages",
-                json={"sender": "stellar", "recipient": "bob", "body": "old token should fail"},
+                json={"sender": "stellar", "recipient": "bob", "body": "old token alias remains valid"},
                 headers=alice_headers,
             )
             payload = sent.json()
@@ -314,7 +314,65 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
         self.assertEqual(result["sent_sender"], "stellar")
         self.assertEqual(result["thread_status"], 200)
         self.assertEqual(result["thread_count"], 3)
-        self.assertEqual(result["old_token_status"], 401)
+        self.assertEqual(result["old_token_status"], 200)
+
+    def test_profile_rename_alias_keeps_comment_delete_from_user_not_found(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            db = backend_app.SessionLocal()
+            try:
+                alice = db.query(backend_app.Harmonizer).filter(backend_app.Harmonizer.username == "alice").first()
+                proposal = backend_app.Proposal(
+                    title="Rename comment target",
+                    description="A post with a comment written before username change.",
+                    userName="alice",
+                    userInitials="AL",
+                    author_type="human",
+                    author_id=alice.id,
+                    voting_deadline=datetime.datetime.utcnow() + datetime.timedelta(days=1),
+                )
+                vibe = backend_app.VibeNode(name="rename-test", author_id=alice.id)
+                db.add_all([proposal, vibe])
+                db.commit()
+                db.refresh(proposal)
+                db.refresh(vibe)
+                comment = backend_app.Comment(
+                    proposal_id=proposal.id,
+                    content="Comment before rename",
+                    author_id=alice.id,
+                    vibenode_id=vibe.id,
+                    created_at=datetime.datetime.utcnow(),
+                )
+                db.add(comment)
+                db.commit()
+                db.refresh(comment)
+                proposal_id = proposal.id
+                comment_id = comment.id
+            finally:
+                db.close()
+
+            rename = client.patch("/profile/alice", json={"username": "stellar"}, headers=alice_headers)
+            delete_with_old_token = client.delete(f"/comments/{comment_id}?user=stellar", headers=alice_headers)
+            public_read = client.get(f"/comments?proposal_id={proposal_id}")
+            delete_json = delete_with_old_token.json()
+            public_json = public_read.json()
+            remaining = public_json.get("comments", public_json) if isinstance(public_json, dict) else public_json
+            result = {
+                "rename_status": rename.status_code,
+                "delete_status": delete_with_old_token.status_code,
+                "delete_detail": delete_json.get("detail") if isinstance(delete_json, dict) else None,
+                "remaining_comments": len(remaining),
+            }
+            print("AUTH_BOUND_WRITE_ROUTES_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_auth_probe(probe)
+
+        self.assertEqual(result["rename_status"], 200)
+        self.assertEqual(result["delete_status"], 200, result)
+        self.assertIsNone(result["delete_detail"])
+        self.assertEqual(result["remaining_comments"], 0)
 
     def test_profile_update_requires_matching_bearer_identity(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(

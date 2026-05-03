@@ -149,6 +149,7 @@ function ProposalCard({
   const [deletingCommentId, setDeletingCommentId] = useState(null);
   const [replyTarget, setReplyTarget] = useState(null);
   const [aiCommentFocus, setAiCommentFocus] = useState("");
+  const [aiCommentParentId, setAiCommentParentId] = useState(null);
   const [localUserName, setLocalUserName] = useState(userName || "");
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [collabInviteOpen, setCollabInviteOpen] = useState(false);
@@ -233,7 +234,7 @@ function ProposalCard({
     }
   };
 
-  const openAiActionModal = (mode, focus = "") => {
+  const openAiActionModal = (mode, focus = "", parentCommentId = null) => {
     if (!isAuthenticated || !userData?.name) {
       openAccountModal();
       return;
@@ -241,8 +242,10 @@ function ProposalCard({
     if (mode === "comment") {
       setShowComments(true);
       setAiCommentFocus(focus || "");
+      setAiCommentParentId(parentCommentId || null);
     } else {
       setAiCommentFocus("");
+      setAiCommentParentId(null);
     }
     setAiActionModalMode(mode);
   };
@@ -1404,7 +1407,7 @@ function ProposalCard({
                     }}
                     onAskAi={(target) => {
                       const excerpt = String(target?.comment || "").replace(/\s+/g, " ").slice(0, 160);
-                      openAiActionModal("comment", `Respond to @${target?.user || "this comment"}: ${excerpt}`);
+                      openAiActionModal("comment", `Respond to @${target?.user || "this comment"}: ${excerpt}`, target?.id || null);
                     }}
                     replyingToName={parent?.user || ""}
                     depth={depth}
@@ -1433,9 +1436,20 @@ function ProposalCard({
       <AiDelegateActionModal
         open={Boolean(aiActionModalMode)}
         mode={aiActionModalMode}
-        target={{ id, title, text: localText, author: authorName, species: specie, media }}
+        target={{
+          id,
+          title,
+          text: localText,
+          author: authorName,
+          species: specie,
+          media,
+          parent_comment_id: aiActionModalMode === "comment" ? aiCommentParentId : null,
+        }}
         initialFocus={aiActionModalMode === "comment" ? aiCommentFocus : ""}
-        onClose={() => setAiActionModalMode("")}
+        onClose={() => {
+          setAiActionModalMode("");
+          setAiCommentParentId(null);
+        }}
         onApproved={(payload, draftAction) => {
           const publishedComment = payload?.summary?.comment;
           if (publishedComment && typeof publishedComment === "object" && (aiActionModalMode === "comment" || aiActionModalMode === "review")) {

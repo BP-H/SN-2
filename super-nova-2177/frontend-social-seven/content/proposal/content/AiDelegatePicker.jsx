@@ -132,7 +132,7 @@ export default function AiDelegatePicker({
               <span className="min-w-0 flex-1 text-left">
                 <span className="block text-[0.82rem] font-black text-[var(--text-black)]">+ Create AI delegate</span>
                 <span className="mt-0.5 block text-[0.68rem] font-semibold text-[var(--text-gray-light)]">
-                  Open AI Genesis, then refresh this picker.
+                  Create one in this popup, or open the full Genesis page.
                 </span>
               </span>
             </button>

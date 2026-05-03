@@ -1099,6 +1099,27 @@ def _proposal_public_context(proposal) -> Dict[str, Any]:
     }
 
 
+def _comment_public_context(db: Session, comment) -> Dict[str, Any]:
+    author_obj = None
+    if CRUD_MODELS_AVAILABLE and getattr(comment, "author_id", None):
+        try:
+            author_obj = db.query(Harmonizer).filter(Harmonizer.id == comment.author_id).first()
+        except Exception:
+            author_obj = None
+    username = getattr(author_obj, "username", None) or getattr(comment, "user", None) or "unknown"
+    species = getattr(author_obj, "species", None) or getattr(comment, "species", None) or "human"
+    body = getattr(comment, "content", None) or getattr(comment, "comment", None) or ""
+    return {
+        "id": getattr(comment, "id", None),
+        "proposal_id": getattr(comment, "proposal_id", None),
+        "parent_comment_id": getattr(comment, "parent_comment_id", None),
+        "author": str(username or "unknown")[:120],
+        "author_species": str(species or "human")[:40],
+        "body": str(body or "")[:1200],
+        "created_at": _format_timestamp(getattr(comment, "created_at", None)),
+    }
+
+
 def _context_excerpt(value: str, fallback: str = "the public proposal context") -> str:
     text_value = " ".join(str(value or "").split())
     if not text_value:
@@ -2234,6 +2255,7 @@ def _generate_locked_ai_delegate_comment(
     proposal,
     actor_payload: Dict[str, Any],
     focus: str = "",
+    parent_comment_context: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     context = actor_payload.get("ai_actor_context") or {}
     traits = [str(item) for item in (context.get("traits") or []) if item][:5]
@@ -2247,14 +2269,25 @@ def _generate_locked_ai_delegate_comment(
     review_posture = context.get("review_posture") or actor_payload.get("review_posture") or ""
     communication_style = context.get("communication_style") or actor_payload.get("communication_style") or "careful and concise"
     display_name = actor_payload.get("display_name") or actor_payload.get("ai_actor_display_name") or actor_payload.get("ai_actor_username") or "AI delegate"
+    parent_context = parent_comment_context if isinstance(parent_comment_context, dict) else {}
+    parent_body = str(parent_context.get("body") or "").strip()
+    parent_author = str(parent_context.get("author") or "").strip()
     focus_sentence = f" I am especially considering {focus}." if focus else ""
     media_sentence = f" I also notice the attached {', '.join(media_indicators)}." if media_indicators else ""
-    comment_text = (
-        f"As {display_name}, I am reading \"{proposal_title}\" through my {trait_text} lens. "
-        f"The key public detail I see is: {proposal_excerpt} "
-        "I would keep the next step visible, approval-based, and grounded in tri-species accountability."
-        f"{media_sentence}{focus_sentence}"
-    )
+    if parent_body:
+        parent_excerpt = _context_excerpt(parent_body, "the selected comment")
+        comment_text = (
+            f"As {display_name}, replying to @{parent_author or 'the commenter'}, I am responding to: {parent_excerpt} "
+            f"On \"{proposal_title}\", my {trait_text} lens points toward a visible, approval-based next step."
+            f"{media_sentence}{focus_sentence}"
+        )
+    else:
+        comment_text = (
+            f"As {display_name}, I am reading \"{proposal_title}\" through my {trait_text} lens. "
+            f"The key public detail I see is: {proposal_excerpt} "
+            "I would keep the next step visible, approval-based, and grounded in tri-species accountability."
+            f"{media_sentence}{focus_sentence}"
+        )
     if len(comment_text) > 620:
         comment_text = comment_text[:617].rstrip() + "..."
 
@@ -2268,6 +2301,7 @@ def _generate_locked_ai_delegate_comment(
         f"Proposal author: @{proposal_context.get('author')} ({proposal_context.get('author_species')})\n"
         f"Proposal context: {proposal_text[:700]}\n"
         f"Media indicators: {', '.join(media_indicators) if media_indicators else 'none'}\n"
+        f"Reply target: @{parent_author} - {parent_body[:700] if parent_body else 'none'}\n"
         f"Custody label: {actor_payload.get('custody_label') or ''}\n"
         f"Focus: {focus or 'none'}\n\n"
         f"Locked charter: {SUPERNOVA_AI_CHARTER_TEXT}\n"
@@ -2290,12 +2324,15 @@ def _generate_locked_ai_delegate_comment(
         "charter_name": actor_payload.get("charter_name") or SUPERNOVA_AI_CHARTER_NAME,
         "custody_label": actor_payload.get("custody_label") or "",
         "proposal_context": proposal_context,
+        "parent_comment_context": parent_context,
+        "parent_comment_id": parent_context.get("id"),
         "ai_actor_context": context,
         "manual_preview_only": True,
         "no_automatic_execution": True,
     }
     prompt = {
         "task": "Generate an AI-authored comment draft as JSON only.",
+        "draft_kind": "reply_to_comment" if parent_body else "top_level_comment",
         "proposal": {
             "id": getattr(proposal, "id", None),
             "title": proposal_title,
@@ -2304,6 +2341,7 @@ def _generate_locked_ai_delegate_comment(
             "author_species": proposal_context.get("author_species"),
             "media": proposal_context.get("media"),
         },
+        "reply_target_comment": parent_context,
         "ai_actor": {
             "display_name": display_name,
             "username": actor_payload.get("ai_actor_username"),
@@ -2322,6 +2360,7 @@ def _generate_locked_ai_delegate_comment(
             "No automatic execution claims.",
             "No token, payout, compensation, reward, equity, or financial-return promise language.",
             "Keep the public comment concise, specific, and grounded in the AI persona.",
+            "If reply_target_comment is present, write the generated_comment as a direct reply to that comment, not a separate top-level observation.",
         ],
     }
     return _generate_with_openai_or_fallback(
@@ -2801,6 +2840,7 @@ class ConnectorDraftAiDelegateCommentIn(BaseModel):
     model_config = {"extra": "forbid"}
     username: str
     proposal_id: int
+    parent_comment_id: Optional[int] = None
     ai_actor_id: Optional[int] = None
     ai_actor_username: Optional[str] = None
     instruction: Optional[str] = ""
@@ -2932,15 +2972,85 @@ def _public_user_payload(user, provider: str = "password") -> Dict[str, Any]:
     }
 
 
-def _create_wrapper_access_token(username: str, expires_delta: Optional[timedelta] = None) -> Optional[str]:
+def _ensure_username_aliases_table(db: Session) -> None:
+    db.execute(text(
+        """
+        CREATE TABLE IF NOT EXISTS username_aliases (
+            old_username_key TEXT PRIMARY KEY,
+            old_username TEXT NOT NULL,
+            new_username TEXT NOT NULL,
+            user_id INTEGER,
+            created_at TIMESTAMP,
+            updated_at TIMESTAMP
+        )
+        """
+    ))
+
+
+def _record_username_alias(db: Session, old_username: str, new_username: str, user_id: Optional[int]) -> None:
+    old_clean = (old_username or "").strip()
+    new_clean = (new_username or "").strip()
+    old_key = _safe_user_key(old_clean)
+    if not old_key or not new_clean or old_key == _safe_user_key(new_clean):
+        return
+    now = datetime.datetime.utcnow()
+    _ensure_username_aliases_table(db)
+    db.execute(
+        text(
+            "INSERT INTO username_aliases "
+            "(old_username_key, old_username, new_username, user_id, created_at, updated_at) "
+            "VALUES (:old_username_key, :old_username, :new_username, :user_id, :created_at, :updated_at) "
+            "ON CONFLICT(old_username_key) DO UPDATE SET "
+            "new_username = excluded.new_username, user_id = excluded.user_id, updated_at = excluded.updated_at"
+        ),
+        {
+            "old_username_key": old_key,
+            "old_username": old_clean,
+            "new_username": new_clean,
+            "user_id": user_id,
+            "created_at": now,
+            "updated_at": now,
+        },
+    )
+
+
+def _resolve_username_alias(db: Session, username: Optional[str]) -> Optional[Dict[str, Any]]:
+    key = _safe_user_key(username or "")
+    if not key:
+        return None
+    try:
+        _ensure_username_aliases_table(db)
+        row = db.execute(
+            text("SELECT * FROM username_aliases WHERE old_username_key = :old_username_key"),
+            {"old_username_key": key},
+        ).fetchone()
+        if not row:
+            return None
+        return {
+            "old_username": getattr(row, "old_username", "") or "",
+            "new_username": getattr(row, "new_username", "") or "",
+            "user_id": getattr(row, "user_id", None),
+        }
+    except Exception:
+        return None
+
+
+def _create_wrapper_access_token(
+    username: str,
+    expires_delta: Optional[timedelta] = None,
+    user_id: Optional[int] = None,
+) -> Optional[str]:
     subject = (username or "").strip()
     if not subject or jwt is None:
         return None
     try:
         settings = get_settings()
         expire = datetime.datetime.utcnow() + (expires_delta or timedelta(minutes=WRAPPER_ACCESS_TOKEN_MINUTES))
+        claims = {"sub": subject, "exp": expire}
+        if user_id is not None:
+            claims["uid"] = int(user_id)
         return jwt.encode(
-            {"sub": subject, "exp": expire},
+            claims,
             settings.SECRET_KEY,
             algorithm=settings.ALGORITHM,
         )
@@ -2949,7 +3059,10 @@ def _create_wrapper_access_token(username: str, expires_delta: Optional[timedelt
 
 
 def _create_optional_access_token(user) -> Optional[str]:
-    return _create_wrapper_access_token(getattr(user, "username", "") or "")
+    return _create_wrapper_access_token(
+        getattr(user, "username", "") or "",
+        user_id=getattr(user, "id", None),
+    )
 
 
 def _auth_fields_for_user(user) -> Dict[str, str]:
@@ -5708,7 +5821,14 @@ def _connector_confidence(value: Optional[Any]) -> Optional[float]:
     return max(0.0, min(confidence, 1.0))
 
 
-def _connector_create_ai_review_comment(db: Session, *, actor, proposal, rationale: str):
+def _connector_create_ai_review_comment(
+    db: Session,
+    *,
+    actor,
+    proposal,
+    rationale: str,
+    parent_comment_id: Optional[int] = None,
+):
     if not CRUD_MODELS_AVAILABLE or Comment is None or VibeNode is None:
         raise HTTPException(status_code=503, detail="Comment system unavailable")
 
@@ -5721,13 +5841,16 @@ def _connector_create_ai_review_comment(db: Session, *, actor, proposal, rationa
         db.add(vibenode_obj)
         db.flush()
 
-    comment = Comment(
-        proposal_id=getattr(proposal, "id", None),
-        content=rationale,
-        author_id=getattr(actor, "id", None),
-        vibenode_id=getattr(vibenode_obj, "id", None),
-        created_at=datetime.datetime.utcnow(),
-    )
+    comment_kwargs = {
+        "proposal_id": getattr(proposal, "id", None),
+        "content": rationale,
+        "author_id": getattr(actor, "id", None),
+        "vibenode_id": getattr(vibenode_obj, "id", None),
+        "created_at": datetime.datetime.utcnow(),
+    }
+    if parent_comment_id is not None and hasattr(Comment, "parent_comment_id"):
+        comment_kwargs["parent_comment_id"] = parent_comment_id
+    comment = Comment(**comment_kwargs)
     db.add(comment)
     db.flush()
     return comment
@@ -6048,6 +6171,21 @@ def connector_draft_ai_delegate_comment(
     requester = _connector_require_actor(authorization, db, payload.username)
     proposal = _connector_get_proposal_or_404(db, payload.proposal_id)
     focus = _normalize_ai_comment_focus(payload.instruction or payload.focus or "")
+    parent_comment_context = None
+    parent_comment_id = payload.parent_comment_id
+    if parent_comment_id is not None:
+        try:
+            parent_comment_id = int(parent_comment_id)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="parent_comment_id must be a comment id")
+        if parent_comment_id <= 0:
+            raise HTTPException(status_code=400, detail="parent_comment_id must be a comment id")
+        parent_comment = db.query(Comment).filter(Comment.id == parent_comment_id).first() if Comment is not None else None
+        if not parent_comment:
+            raise HTTPException(status_code=404, detail="Reply target comment not found")
+        if str(getattr(parent_comment, "proposal_id", "")) != str(getattr(proposal, "id", payload.proposal_id)):
+            raise HTTPException(status_code=400, detail="Reply target comment belongs to another post")
+        parent_comment_context = _comment_public_context(db, parent_comment)
     row = (
         _get_ai_actor_row_by_id(db, payload.ai_actor_id)
         if payload.ai_actor_id is not None
@@ -6074,6 +6212,7 @@ def connector_draft_ai_delegate_comment(
             "display_name": display_name,
         },
         focus=focus,
+        parent_comment_context=parent_comment_context,
     )
     summary = {
         "action": "draft_ai_comment",
@@ -6083,6 +6222,8 @@ def connector_draft_ai_delegate_comment(
         "approved_by_required_user_id": getattr(requester, "id", None),
         "proposal_id": getattr(proposal, "id", payload.proposal_id),
         "proposal_title": _connector_proposal_title(proposal),
+        "parent_comment_id": parent_comment_id,
+        "parent_comment_context": parent_comment_context or {},
         "instruction": focus,
         "body": comment_draft["generated_comment"],
         "generated_comment": comment_draft["generated_comment"],
@@ -6096,7 +6237,7 @@ def connector_draft_ai_delegate_comment(
         "model_identity": comment_draft.get("model_identity") or actor_metadata.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY,
         "sealed_content": True,
         "content_source": "locked_server_charter",
-        "approval_effect": "Publish one AI-authored comment.",
+        "approval_effect": "Publish one AI-authored reply." if parent_comment_id else "Publish one AI-authored comment.",
     }
     try:
         record = _create_connector_action_draft(
@@ -6428,6 +6569,17 @@ def connector_approve_ai_comment_action(
     body = str(payload.get("generated_comment") or payload.get("body") or "").strip()
     if not body:
         raise HTTPException(status_code=400, detail="AI comment draft is missing generated content")
+    parent_comment_id = payload.get("parent_comment_id")
+    if parent_comment_id is not None:
+        try:
+            parent_comment_id = int(parent_comment_id)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="AI comment draft has invalid parent_comment_id")
+        parent_comment = db.query(Comment).filter(Comment.id == parent_comment_id).first() if Comment is not None else None
+        if not parent_comment:
+            raise HTTPException(status_code=404, detail="Reply target comment not found")
+        if str(getattr(parent_comment, "proposal_id", "")) != str(getattr(proposal, "id", proposal_id)):
+            raise HTTPException(status_code=400, detail="Reply target comment belongs to another post")
 
     try:
         comment = _connector_create_ai_review_comment(
@@ -6435,6 +6587,7 @@ def connector_approve_ai_comment_action(
             actor=publish_actor,
             proposal=proposal,
             rationale=body,
+            parent_comment_id=parent_comment_id,
         )
         now = datetime.datetime.utcnow()
         action.status = "executed"
@@ -6445,6 +6598,7 @@ def connector_approve_ai_comment_action(
             "proposal_id": getattr(proposal, "id", proposal_id),
             "actor": getattr(publish_actor, "username", ""),
             "comment_id": getattr(comment, "id", None),
+            "parent_comment_id": parent_comment_id,
             "comment": body,
             "content_hash": content_hash,
             "ai_actor_id": payload.get("ai_actor_id"),
@@ -6473,6 +6627,7 @@ def connector_approve_ai_comment_action(
             "proposal_id": getattr(proposal, "id", proposal_id),
             "proposal_title": _connector_proposal_title(proposal),
             "comment_id": getattr(comment, "id", None),
+            "parent_comment_id": parent_comment_id,
             "content_hash": content_hash,
             "reasoning_hash": action.result_payload.get("reasoning_hash"),
             "generation_source": action.result_payload.get("generation_source"),
@@ -7310,6 +7465,8 @@ def update_profile(
             _sync_username_references(old_username, next_username, user_id)
             _sync_ai_delegate_custodian_prefix(db, old_username, next_username, user_id)
             _rename_profile_metadata(db, old_username, next_username)
+            _record_username_alias(db, old_username, next_username, user_id)
+            db.commit()
         if payload.domain_url is not None or payload.domain_as_profile is not None:
             _upsert_profile_metadata(db, next_username, payload.domain_url, payload.domain_as_profile)
         avatar_value = avatar_to_sync
@@ -8095,7 +8252,28 @@ def get_current_harmonizer(
     if not username or Harmonizer is None:
         raise HTTPException(status_code=401, detail="User not found")
 
-    user = db.query(Harmonizer).filter(Harmonizer.username == username).first()
+    user = None
+    token_user_id = payload.get("uid")
+    if token_user_id is not None:
+        try:
+            user = db.query(Harmonizer).filter(Harmonizer.id == int(token_user_id)).first()
+        except (TypeError, ValueError):
+            user = None
+    if not user:
+        user = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == str(username).lower()).first()
+    if not user:
+        alias = _resolve_username_alias(db, username)
+        if alias:
+            alias_user_id = alias.get("user_id")
+            if alias_user_id is not None:
+                try:
+                    user = db.query(Harmonizer).filter(Harmonizer.id == int(alias_user_id)).first()
+                except (TypeError, ValueError):
+                    user = None
+            if not user and alias.get("new_username"):
+                user = db.query(Harmonizer).filter(
+                    func.lower(Harmonizer.username) == str(alias.get("new_username")).lower()
+                ).first()
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
     return user
@@ -8124,6 +8302,16 @@ def _enforce_token_identity_match(
     for value in identity_values:
         value_key = _safe_user_key(value or "")
         if value_key and value_key != token_key:
+            alias = _resolve_username_alias(db, value)
+            alias_matches_user = bool(
+                alias
+                and (
+                    _safe_user_key(alias.get("new_username") or "") == token_key
+                    or (alias.get("user_id") is not None and alias.get("user_id") == getattr(current_user, "id", None))
+                )
+            )
+            if alias_matches_user:
+                continue
             raise HTTPException(status_code=403, detail="Bearer token does not match requested user")
     return current_user
 
@@ -8138,6 +8326,16 @@ def _require_token_identity_match(
     for value in identity_values:
         value_key = _safe_user_key(value or "")
         if value_key and value_key != token_key:
+            alias = _resolve_username_alias(db, value)
+            alias_matches_user = bool(
+                alias
+                and (
+                    _safe_user_key(alias.get("new_username") or "") == token_key
+                    or (alias.get("user_id") is not None and alias.get("user_id") == getattr(current_user, "id", None))
+                )
+            )
+            if alias_matches_user:
+                continue
             raise HTTPException(status_code=403, detail="Bearer token does not match requested user")
     return current_user
 
@@ -9206,13 +9404,13 @@ def update_comment(
     authorization: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    requester = _safe_user_key(payload.user)
     next_comment = (payload.comment or "").strip()
-    if not requester:
+    if not _safe_user_key(payload.user):
         raise HTTPException(status_code=400, detail="user is required")
     if not next_comment:
         raise HTTPException(status_code=400, detail="comment is required")
-    _require_token_identity_match(authorization, db, payload.user)
+    current_user = _require_token_identity_match(authorization, db, payload.user)
+    requester = _safe_user_key(getattr(current_user, "username", "") or payload.user)
 
     try:
         if CRUD_MODELS_AVAILABLE:
@@ -9277,7 +9475,8 @@ def vote_comment(
         raise HTTPException(status_code=400, detail="username is required")
     if choice not in {"up", "down"}:
         raise HTTPException(status_code=400, detail="choice must be up or down")
-    _require_token_identity_match(authorization, db, username)
+    current_user = _require_token_identity_match(authorization, db, username)
+    username = getattr(current_user, "username", "") or username
 
     try:
         _ensure_comment_votes_table(db)
@@ -9287,7 +9486,9 @@ def vote_comment(
                 raise HTTPException(status_code=404, detail="Comment not found")
             if _is_deleted_comment_record(comment):
                 raise HTTPException(status_code=400, detail="Cannot vote on a deleted comment")
-            harmonizer = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == username.lower()).first()
+            harmonizer = db.query(Harmonizer).filter(Harmonizer.id == getattr(current_user, "id", None)).first()
+            if not harmonizer:
+                harmonizer = db.query(Harmonizer).filter(func.lower(Harmonizer.username) == username.lower()).first()
             if not harmonizer:
                 raise HTTPException(status_code=404, detail=f"User '{username}' not found")
             voter_type = getattr(harmonizer, "species", None) or payload.voter_type or "human"
@@ -9298,7 +9499,9 @@ def vote_comment(
                 raise HTTPException(status_code=404, detail="Comment not found")
             if _is_deleted_comment_record(row):
                 raise HTTPException(status_code=400, detail="Cannot vote on a deleted comment")
-            harmonizer = _find_harmonizer_by_username(db, username)
+            harmonizer = db.query(Harmonizer).filter(Harmonizer.id == getattr(current_user, "id", None)).first() if Harmonizer is not None else None
+            if not harmonizer:
+                harmonizer = _find_harmonizer_by_username(db, username)
             if not harmonizer:
                 raise HTTPException(status_code=404, detail=f"User '{username}' not found")
             voter_type = getattr(harmonizer, "species", None) or payload.voter_type or "human"
@@ -9342,10 +9545,12 @@ def remove_comment_vote(
     clean_username = (username or "").strip()
     if not clean_username:
         raise HTTPException(status_code=400, detail="username is required")
-    _require_token_identity_match(authorization, db, clean_username)
+    current_user = _require_token_identity_match(authorization, db, clean_username)
     try:
         _ensure_comment_votes_table(db)
-        harmonizer = _find_harmonizer_by_username(db, clean_username)
+        harmonizer = db.query(Harmonizer).filter(Harmonizer.id == getattr(current_user, "id", None)).first() if Harmonizer is not None else None
+        if not harmonizer:
+            harmonizer = _find_harmonizer_by_username(db, clean_username)
         if not harmonizer:
             raise HTTPException(status_code=404, detail=f"User '{clean_username}' not found")
         db.execute(
@@ -9369,10 +9574,10 @@ def delete_comment(
     authorization: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    requester = _safe_user_key(user)
-    if not requester:
+    if not _safe_user_key(user):
         raise HTTPException(status_code=400, detail="user is required")
-    _require_token_identity_match(authorization, db, user)
+    current_user = _require_token_identity_match(authorization, db, user)
+    requester = _safe_user_key(getattr(current_user, "username", "") or user)
 
     try:
         if CRUD_MODELS_AVAILABLE:

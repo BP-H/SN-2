@@ -95,6 +95,7 @@ const MINI_GENESIS_TRAITS = [
   "Human Rights",
   "Protocol Research",
 ];
+const MINI_GENESIS_STEPS = ["Name", "Traits", "Persona", "Create"];
 
 function miniSlug(value) {
   return String(value || "")
@@ -438,7 +439,10 @@ export default function AiDelegateActionModal({
             proposal_id: Number(target.id),
             ...selectedDelegatePayload(selectedDelegate),
           };
-      if (isComment) body.instruction = focus;
+      if (isComment) {
+        body.instruction = focus;
+        if (target.parent_comment_id) body.parent_comment_id = Number(target.parent_comment_id);
+      }
       const response = await fetch(modeConfig.endpoint, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
@@ -505,19 +509,32 @@ export default function AiDelegateActionModal({
 
   const Icon = modeConfig.Icon || IoSparklesOutline;
   const showHeaderTitle = Boolean(draftAction);
+  const genesisStepIndex = genesisDraft ? 3 : genesisTraits.length > 0 ? 2 : genesisName.trim() ? 1 : 0;
   const createDelegateCard = (
     <div className="ai-delegate-create-card mt-3 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.045] p-3">
       <div className="flex items-center justify-between gap-2">
         <div>
           <p className="text-[0.86rem] font-black text-[var(--text-black)]">AI Genesis</p>
-          <p className="text-[0.68rem] font-semibold text-[var(--text-gray-light)]">Create a delegate here, then use it right away.</p>
+          <p className="text-[0.68rem] font-semibold text-[var(--text-gray-light)]">
+            Name the AI, choose traits, generate persona, approve.
+          </p>
         </div>
         <Link href="/settings/ai-delegates" onClick={onClose} className="text-[0.68rem] font-black text-[var(--pink)]">
           Full page
         </Link>
       </div>
+      <div className="ai-delegate-genesis-steps mt-3" aria-label="AI Genesis steps">
+        {MINI_GENESIS_STEPS.map((step, index) => (
+          <span
+            key={step}
+            className={`ai-delegate-genesis-step ${index <= genesisStepIndex ? "is-active" : ""}`}
+          >
+            {step}
+          </span>
+        ))}
+      </div>
       <label className="mt-3 block text-[0.62rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
-        Call-sign
+        AI name
         <span className="mt-2 flex items-center gap-2 rounded-[0.9rem] border border-[var(--horizontal-line)] bg-white/[0.045] px-2.5 py-2">
           <span className="shrink-0 rounded-full bg-white/[0.06] px-2 py-1 text-[0.68rem] normal-case tracking-normal text-[var(--text-gray-light)]">
             @{userData?.name || "you"} /
@@ -535,10 +552,10 @@ export default function AiDelegateActionModal({
         </span>
       </label>
       <p className="mt-1 text-[0.64rem] font-semibold text-[var(--text-gray-light)]">
-        Reserved handle preview: @{miniHandlePreview(userData?.name, genesisName)}
+        Generated system handle: @{miniHandlePreview(userData?.name, genesisName)}
       </p>
       <label className="mt-3 block text-[0.62rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
-        Traits
+        Traits, 1-5
         <input
           value={genesisTraitQuery}
           onChange={(event) => setGenesisTraitQuery(event.target.value)}
@@ -584,6 +601,9 @@ export default function AiDelegateActionModal({
         placeholder="Optional seed sentence"
         className="ai-delegate-select mt-3 w-full rounded-[0.85rem] px-3 py-2 text-[0.78rem]"
       />
+      <p className="mt-1 text-[0.63rem] leading-4 text-[var(--text-gray-light)]">
+        This seed is optional. It can nudge the persona, but the core charter stays server-generated.
+      </p>
       {genesisDraft && (
         <div className="ai-delegate-preview-card mt-3 rounded-[0.9rem] p-3">
           <p className="text-[0.78rem] font-black text-[var(--text-black)]">{genesisDraft.display_name || genesisName}</p>
@@ -598,37 +618,36 @@ export default function AiDelegateActionModal({
         </div>
       )}
       {genesisError && <p className="ai-delegate-error mt-2 rounded-[0.8rem] px-3 py-2 text-[0.72rem] font-bold">{genesisError}</p>}
-      <div className="mt-3 flex items-center justify-between gap-2">
+      <div className="mt-3 grid grid-cols-[1fr_auto] items-center gap-2">
         <button
           type="button"
           onClick={generateGenesisPersona}
-          disabled={Boolean(genesisBusy)}
-          className="ai-delegate-secondary inline-flex h-9 w-9 items-center justify-center rounded-full disabled:opacity-55"
+          disabled={Boolean(genesisBusy) || !genesisName.trim() || genesisTraits.length < 1}
+          className="ai-delegate-genesis-action ai-delegate-secondary disabled:opacity-55"
           title="Generate persona"
           aria-label="Generate persona"
         >
           <IoSparklesOutline />
+          <span>{genesisBusy === "generate" ? "Generating" : genesisDraft ? "Regenerate persona" : "Generate persona"}</span>
         </button>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => loadDelegates()}
-            className="ai-delegate-secondary rounded-full px-3 py-2 text-[0.7rem] font-black"
-          >
-            Refresh
-          </button>
-          <button
-            type="button"
-            onClick={approveGenesisDelegate}
-            disabled={Boolean(genesisBusy) || !genesisDraft}
-            className="ai-delegate-action-icon ai-delegate-action-approve disabled:opacity-45"
-            title="Approve and create"
-            aria-label="Approve and create AI delegate"
-          >
-            <IoCheckmark />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={approveGenesisDelegate}
+          disabled={Boolean(genesisBusy) || !genesisDraft}
+          className="ai-delegate-action-icon ai-delegate-action-approve disabled:opacity-45"
+          title="Approve and create"
+          aria-label="Approve and create AI delegate"
+        >
+          <IoCheckmark />
+        </button>
       </div>
+      <button
+        type="button"
+        onClick={() => loadDelegates()}
+        className="mt-2 text-[0.66rem] font-black text-[var(--text-gray-light)] hover:text-[var(--pink)]"
+      >
+        Refresh delegate list
+      </button>
     </div>
   );
 
@@ -703,6 +722,11 @@ export default function AiDelegateActionModal({
                   </p>
                 )}
                 <p className="mt-1 line-clamp-2 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">{target.text || "No post text available."}</p>
+                {isComment && target.parent_comment_id && (
+                  <p className="mt-1 rounded-full bg-[var(--pink-soft)] px-2.5 py-1 text-[0.64rem] font-black uppercase tracking-[0.08em] text-[var(--pink)]">
+                    Replying as AI under the selected comment
+                  </p>
+                )}
                 {indicators.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1.5 text-[0.64rem] font-bold uppercase tracking-[0.1em] text-[var(--text-gray-light)]">
                     {indicators.map((indicator) => (

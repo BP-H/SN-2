@@ -861,7 +861,9 @@ class AiDelegateManagementTests(unittest.TestCase):
 
         self.assertIn("AI Genesis", page)
         self.assertIn('data-ai-genesis-flow="call-sign-v2"', page)
-        self.assertIn("AI name / call-sign", page)
+        self.assertIn("AI name", page)
+        self.assertIn("name, traits, generated persona, approve/create", page)
+        self.assertIn("The profile shows the AI by its name", page)
         self.assertIn("Search traits", page)
         self.assertIn("Generate persona", page)
         self.assertIn("Approve and create", page)
@@ -911,6 +913,8 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("AiDelegateActionModal", proposal_card)
         self.assertIn('mode={aiActionModalMode}', proposal_card)
         self.assertIn("openAiActionModal", proposal_card)
+        self.assertIn("aiCommentParentId", proposal_card)
+        self.assertIn("parent_comment_id", proposal_card)
         self.assertIn("Published as ${actorName}", proposal_card)
         self.assertIn('mode="ai_post"', composer)
         self.assertIn('aria-label="AI"', composer)
@@ -948,7 +952,12 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("image_data_urls", ai_modal)
         self.assertIn("readComposerImageDataUrls", ai_modal)
         self.assertIn("composerDraftMode", ai_modal)
+        self.assertIn("parent_comment_id", ai_modal)
+        self.assertIn("Replying as AI under the selected comment", ai_modal)
         self.assertIn("MINI_GENESIS_TRAITS", ai_modal)
+        self.assertIn("MINI_GENESIS_STEPS", ai_modal)
+        self.assertIn("Name the AI, choose traits, generate persona, approve.", ai_modal)
+        self.assertIn("Generated system handle", ai_modal)
         self.assertIn("/ai/delegates/persona-draft", ai_modal)
         self.assertIn("Approve and create AI delegate", ai_modal)
         self.assertIn("miniHandlePreview", ai_modal)
@@ -969,6 +978,7 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("onCreateDelegate", ai_picker)
         self.assertIn("+ Create AI delegate", ai_picker)
         self.assertIn("ai-delegate-picker-create", ai_picker)
+        self.assertIn("Create one in this popup", ai_picker)
         self.assertIn('href="/settings/ai-delegates"', ai_modal)
         self.assertIn("supernova:post-created", home_feed)
         self.assertIn("setQueryData", home_feed)
@@ -1469,6 +1479,68 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertEqual(result["approve_result"]["ai_actor_type"], "principal_delegate")
         self.assertEqual(result["approve_result"]["sealed_content"], True)
         self.assertTrue(result["approve_summary"]["comment"]["user"].startswith("alice-nova"))
+        self.assertEqual(result["approve_summary"]["comment"]["species"], "ai")
+
+    def test_ai_delegate_comment_on_comment_publishes_as_nested_ai_reply(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            created = create_delegate(ai_name="Nova", traits=["Science", "Ethics"])
+            delegate = created.json()["delegate"]
+            db = backend_app.SessionLocal()
+            try:
+                alice = db.query(backend_app.Harmonizer).filter(backend_app.Harmonizer.username == "alice").first()
+                proposal = db.query(backend_app.Proposal).filter(backend_app.Proposal.id == seeded["proposal_id"]).first()
+                vibe = backend_app.VibeNode(name="comment-reply-target", author_id=alice.id)
+                db.add(vibe)
+                db.commit()
+                db.refresh(vibe)
+                parent = backend_app.Comment(
+                    proposal_id=proposal.id,
+                    content="Could the sensor review include a public safety checklist before deployment?",
+                    author_id=alice.id,
+                    vibenode_id=vibe.id,
+                    created_at=datetime.datetime.utcnow(),
+                )
+                db.add(parent)
+                db.commit()
+                db.refresh(parent)
+                parent_id = parent.id
+            finally:
+                db.close()
+
+            draft = client.post(
+                "/connector/actions/draft-ai-delegate-comment",
+                json={
+                    "username": "alice",
+                    "proposal_id": seeded["proposal_id"],
+                    "parent_comment_id": parent_id,
+                    "ai_actor_id": delegate["id"],
+                    "focus": "Answer the safety checklist question directly.",
+                },
+                headers=alice_headers,
+            )
+            action_id = draft.json()["action_proposal"]["id"]
+            approve = client.post(f"/connector/actions/{action_id}/approve-ai-comment", headers=alice_headers)
+            result = {
+                "draft_status": draft.status_code,
+                "draft_summary": draft.json().get("summary"),
+                "approve_status": approve.status_code,
+                "approve_summary": approve.json().get("summary"),
+            }
+            print("AI_DELEGATE_RESULT=" + json.dumps(result, sort_keys=True))
+            """
+        )
+
+        result = run_delegate_probe(probe)
+
+        self.assertEqual(result["draft_status"], 200, result)
+        self.assertTrue(result["draft_summary"]["parent_comment_id"])
+        self.assertIn("safety checklist", result["draft_summary"]["generated_comment"])
+        self.assertEqual(result["approve_status"], 200, result)
+        self.assertEqual(
+            result["approve_summary"]["comment"]["parent_comment_id"],
+            result["draft_summary"]["parent_comment_id"],
+        )
         self.assertEqual(result["approve_summary"]["comment"]["species"], "ai")
 
 
