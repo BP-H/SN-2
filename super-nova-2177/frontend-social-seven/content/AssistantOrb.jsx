@@ -50,18 +50,11 @@ function fallbackFor(action, target) {
     return `${title} by ${author}. Core signal: ${text.slice(0, 150)}${text.length > 150 ? "..." : ""}`;
   }
 
-  if (action === "comment") {
-    return "Strong signal. I would love to see the next step framed across humans, AI, and ORGs so the vote can turn into action.";
-  }
-
   return "Post selected. Comments are open so you can engage directly.";
 }
 
 function buildPrompt(action, target) {
   const text = target?.text || "";
-  if (action === "comment") {
-    return `Write one concise, thoughtful social-network comment for this SuperNova post. Keep it human, constructive, and not salesy.\n\nAuthor: ${target?.author}\nTitle: ${target?.title}\nText: ${text}`;
-  }
   return `Summarize this SuperNova social post in two short bullets and name one useful next action.\n\nAuthor: ${target?.author}\nTitle: ${target?.title}\nText: ${text}`;
 }
 
@@ -80,6 +73,7 @@ function connectorActionLabel(actionType = "") {
   const labels = {
     draft_ai_review: "AI review draft",
     draft_ai_comment: "AI comment draft",
+    draft_ai_post: "AI post draft",
     draft_vote: "Vote draft",
     draft_comment: "Comment draft",
     draft_proposal: "Post draft",
@@ -109,6 +103,13 @@ function connectorActionPreview(action = {}) {
     const body = payload.generated_comment || payload.body || "";
     const cleanBody = String(body || "").replace(/\s+/g, " ").trim();
     return cleanBody.length > 120 ? `${cleanBody.slice(0, 120)}...` : cleanBody || "AI-authored comment draft";
+  }
+  if (action.action_type === "draft_ai_post") {
+    const body = payload.generated_post_body || payload.body || "";
+    const title = payload.generated_title || payload.title || "AI-authored post draft";
+    const cleanBody = String(body || "").replace(/\s+/g, " ").trim();
+    const preview = `${title}: ${cleanBody}`;
+    return preview.length > 120 ? `${preview.slice(0, 120)}...` : preview;
   }
   const text =
     payload.body ||
@@ -147,7 +148,7 @@ function generationSourceLabel(value) {
 
 function aiReviewDetailRows(action = {}) {
   const payload = action.draft_payload || {};
-  if (action.action_type !== "draft_ai_review" && action.action_type !== "draft_ai_comment") return [];
+  if (!["draft_ai_review", "draft_ai_comment", "draft_ai_post"].includes(action.action_type)) return [];
   const prefs = payload.autonomy_preferences && typeof payload.autonomy_preferences === "object" ? payload.autonomy_preferences : {};
   const actorName = payload.ai_actor_display_name || payload.display_name || payload.actor || payload.ai_actor_username;
   return [
@@ -158,7 +159,7 @@ function aiReviewDetailRows(action = {}) {
     payload.generation_source && ["Generation", generationSourceLabel(payload.generation_source)],
     payload.content_hash && ["Content hash", compactActionHash(payload.content_hash)],
     payload.reasoning_hash && ["Reasoning hash", compactActionHash(payload.reasoning_hash)],
-    action.action_type === "draft_ai_comment" && prefs.posts && ["Autonomy", "AI-authored content requires custodian approval"],
+    (action.action_type === "draft_ai_comment" || action.action_type === "draft_ai_post") && prefs.posts && ["Autonomy", "AI-authored content requires custodian approval"],
     action.action_type === "draft_ai_review" && prefs.reviews && ["Autonomy", prefs.reviews === "custodian_approval_required" ? "reviews require custodian approval" : prefs.reviews],
   ].filter(Boolean);
 }
@@ -614,6 +615,8 @@ export default function AssistantOrb() {
           ? `${API_BASE_URL}/connector/actions/${action.id}/approve-ai-review`
           : action.action_type === "draft_ai_comment"
           ? `${API_BASE_URL}/connector/actions/${action.id}/approve-ai-comment`
+          : action.action_type === "draft_ai_post"
+          ? `${API_BASE_URL}/connector/actions/${action.id}/approve-ai-post`
           : `${API_BASE_URL}/connector/actions/${action.id}/approve-vote`;
       const endpoint =
         reviewAction === "approve"
@@ -634,6 +637,8 @@ export default function AssistantOrb() {
             ? `Published as ${connectorActionActorLabel(action)}.`
             : action.action_type === "draft_ai_comment"
             ? `Published as ${connectorActionActorLabel(action)}.`
+            : action.action_type === "draft_ai_post"
+            ? `Published as ${connectorActionActorLabel(action)}.`
             : "Vote action approved."
           : "Canceled - nothing published."
       );
@@ -642,6 +647,33 @@ export default function AssistantOrb() {
     } finally {
       setConnectorActionBusyId(null);
     }
+  };
+
+  const openDelegateAction = (mode = "review") => {
+    if (!target?.id) {
+      setReply("Drag the AI cursor onto a post first.");
+      setMenuOpen(true);
+      return;
+    }
+    if (!isAuthenticated) {
+      setMenuOpen(true);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
+      }
+      return;
+    }
+    window.dispatchEvent(
+      new CustomEvent("supernova:open-ai-delegate-action", {
+        detail: { proposalId: target.id, mode },
+      })
+    );
+    setSettingsOpen(false);
+    setCommentOpen(false);
+    setActionsOpen(false);
+    setMenuOpen(false);
+    setReply("");
+    setGhostVisible(false);
+    dockRef.current?.classList.remove("ai-cursor-dock-hidden");
   };
 
   const runAction = async (action) => {
@@ -708,41 +740,13 @@ export default function AssistantOrb() {
       return;
     }
 
+    if (action === "delegate_review") {
+      openDelegateAction("review");
+      return;
+    }
+
     if (action === "engage") {
-      if (!isAuthenticated) {
-        setMenuOpen(true);
-        if (typeof window !== "undefined") {
-          window.dispatchEvent(new CustomEvent("supernova:open-account", { detail: { mode: "create" } }));
-        }
-        return;
-      }
-      setBusy(true);
-      setSettingsOpen(false);
-      setActionsOpen(false);
-      setCommentOpen(false);
-      setReply("");
-      try {
-        const response = await fetch("/api/ai", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ prompt: buildPrompt("comment", target) }),
-        });
-        const data = await response.json().catch(() => ({}));
-        if (hasUsableAiReply(response, data)) {
-          setCommentText(data.reply);
-          setReply("");
-        } else {
-          setCommentText(fallbackFor("comment", target));
-          setReply("AI was unavailable, so fallback text was used.");
-        }
-      } catch {
-        setCommentText(fallbackFor("comment", target));
-        setReply("AI was unavailable, so fallback text was used.");
-      } finally {
-        setBusy(false);
-        setCommentOpen(true);
-        setMenuOpen(true);
-      }
+      openDelegateAction("comment");
       return;
     }
 
@@ -855,8 +859,8 @@ export default function AssistantOrb() {
     { action: "like", label: "Support", icon: BiSolidLike, dx: 56, dy: -88, size: "primary", tone: "pink" },
     { action: "actions", label: "AI Actions", icon: IoListCircleOutline, dx: 0, dy: -124, tone: "blue" },
     { action: "comment", label: "Comment", icon: FaCommentAlt, dx: -100, dy: -28 },
-    { action: "brief", label: "Brief", icon: IoSparklesOutline, dx: 100, dy: -28 },
-    { action: "engage", label: "Draft", icon: IoChatbubbleEllipsesOutline, dx: -90, dy: 48 },
+    { action: "delegate_review", label: "AI Review", icon: IoSparklesOutline, dx: 100, dy: -28 },
+    { action: "engage", label: "AI Comment", icon: IoChatbubbleEllipsesOutline, dx: -90, dy: 48 },
     { action: "share", label: "Share", icon: FaShare, dx: 90, dy: 48 },
     { action: "universe", label: "Universe", icon: IoPlanetOutline, dx: -34, dy: 96 },
     { action: "key", label: "AI Settings", icon: IoKeyOutline, dx: 34, dy: 96 },
@@ -1009,9 +1013,9 @@ export default function AssistantOrb() {
           {settingsOpen && (
             <div className="mt-3 flex flex-col gap-2">
               <div className="ai-cursor-result-box rounded-[0.85rem] p-3 text-[0.72rem] leading-5">
-                Drag the AI cursor onto a post, then choose Brief or Draft. The AI widget uses the server
-                OPENAI_API_KEY when configured; it does not store browser keys. AI delegate provider labels are managed
-                in AI Genesis, with private provider connections deferred until encrypted server-side secret storage exists.
+                Drag the AI cursor onto a post, then choose AI Review or AI Comment for official delegate actions.
+                Generic summarize/test utilities use the server OPENAI_API_KEY when configured; the AI widget does not store browser keys.
+                AI delegate provider labels are managed in AI Genesis, with private provider connections deferred until encrypted server-side secret storage exists.
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
@@ -1044,21 +1048,7 @@ export default function AssistantOrb() {
               <div className="grid gap-2 sm:grid-cols-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    if (!target?.id) {
-                      setReply("Drag the AI cursor onto a post first.");
-                      return;
-                    }
-                    window.dispatchEvent(
-                      new CustomEvent("supernova:open-ai-delegate-action", {
-                        detail: { proposalId: target.id, mode: "review" },
-                      })
-                    );
-                    setSettingsOpen(false);
-                    setMenuOpen(false);
-                    setGhostVisible(false);
-                    dockRef.current?.classList.remove("ai-cursor-dock-hidden");
-                  }}
+                  onClick={() => openDelegateAction("review")}
                   className="ai-cursor-secondary-button rounded-full px-3 py-2 text-[0.74rem] font-semibold"
                 >
                   Use AI delegate
@@ -1165,8 +1155,9 @@ export default function AssistantOrb() {
                     const isVoteDraft = action.action_type === "draft_vote";
                     const isAiReviewDraft = action.action_type === "draft_ai_review";
                     const isAiCommentDraft = action.action_type === "draft_ai_comment";
-                    const isAiAuthoredDraft = isAiReviewDraft || isAiCommentDraft;
-                    const isApprovableDraft = isVoteDraft || isAiReviewDraft || isAiCommentDraft;
+                    const isAiPostDraft = action.action_type === "draft_ai_post";
+                    const isAiAuthoredDraft = isAiReviewDraft || isAiCommentDraft || isAiPostDraft;
+                    const isApprovableDraft = isVoteDraft || isAiReviewDraft || isAiCommentDraft || isAiPostDraft;
                     const confidenceLabel = connectorActionConfidence(action);
                     const aiReviewRows = aiReviewDetailRows(action);
                     return (
@@ -1192,6 +1183,8 @@ export default function AssistantOrb() {
                             <p className="text-[0.68rem] font-semibold leading-5 text-[var(--text-gray-light)]">
                               {isAiReviewDraft
                                 ? "Approval publishes exactly one AI vote and one rationale comment."
+                                : isAiPostDraft
+                                ? "Approval publishes exactly one AI-authored post."
                                 : "Approval publishes exactly one AI-authored comment."}
                             </p>
                             {aiReviewRows.length > 0 && (

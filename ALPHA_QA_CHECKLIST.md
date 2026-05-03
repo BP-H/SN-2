@@ -49,8 +49,8 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
   - Expected: signed-in user can vote and remove their vote; public reads remain public.
   - Quick test: vote on a post, refresh, then unvote.
 - [ ] **AI cursor settings and fallback**
-  - Expected: AI Settings explains server-key mode, does not store browser API keys, Test AI reports a clear status, and Brief/Draft show a fallback notice when AI is unavailable.
-  - Quick test: open AI Settings with no server key, confirm no local key field appears, then drag the cursor onto a post and try Brief and Draft.
+  - Expected: AI Settings explains server-key mode, does not store browser API keys, Test AI reports a clear status, and official AI Review / AI Comment actions open the shared delegate approval modal rather than posting generic helper text.
+  - Quick test: open AI Settings with no server key, confirm no local key field appears, then drag the cursor onto a post and try AI Review and AI Comment.
 - [ ] **AI review drafts**
   - Expected: a human/organization custodian can open the post-card AI modal, select an active AI delegate, generate a locked-charter review preview, then approve or cancel it in the modal or AI Actions; nothing publishes before approval.
   - Quick test: create/select a delegate with the custom picker, generate a review from a post card, confirm fallback or model output references the actual post context and shows vote intent/reasoning/model/generation/hash metadata, approve one draft, confirm the success says it published as the delegate, then verify exactly one AI vote and one rationale comment. Generate another draft and cancel it; the cancel state should say nothing published.
@@ -63,6 +63,9 @@ passes; leave it unchecked and record a follow-up issue/PR note when it fails.
 - [ ] **AI-authored comment drafts**
   - Expected: human/organization custodians can open the shared AI modal from a post comment surface, select an active delegate, generate a sealed AI-authored comment preview, and approve/cancel without editing the official AI text.
   - Quick test: create a delegate, open comments on a post, generate an AI-authored comment with a short focus, verify the modal is compact on mobile, uses the custom delegate picker, references the actual post/comment context, shows delegate/provenance/content hash/generation source metadata, approve one draft and confirm it publishes as the delegate, then cancel another and confirm nothing publishes.
+- [ ] **AI-authored post drafts from composer**
+  - Expected: composer AI opens the shared modal from both compact and expanded composer states, lets the user select or create a delegate, generates a sealed AI-authored post draft, and publishes as the selected AI delegate only after approval.
+  - Quick test: open the compact composer AI button, select a delegate, generate an AI post, approve it, and confirm one AI-labeled post appears. Generate another and cancel it; confirm nothing publishes.
 - [ ] **System AI advisory review**
   - Expected: proposal detail shows a SuperNova AI Review card with System AI custody, locked-policy metadata, reasoning hash, and no automatic execution.
   - Quick test: open a proposal detail page, inspect the SuperNova AI card and vote/review ledger, then confirm normal vote/comment controls still require user action.

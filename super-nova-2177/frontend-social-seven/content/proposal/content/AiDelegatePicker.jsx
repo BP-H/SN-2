@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { IoChevronDown, IoCheckmark } from "react-icons/io5";
+import { IoAdd, IoChevronDown, IoCheckmark } from "react-icons/io5";
 import { avatarDisplayUrl } from "@/utils/avatar";
 
 function delegateInitials(delegate = {}) {
@@ -56,6 +56,7 @@ export default function AiDelegatePicker({
   delegates = [],
   value = "",
   onChange,
+  onCreateDelegate,
   defaultAvatar = "",
   disabledCount = 0,
 }) {
@@ -66,6 +67,7 @@ export default function AiDelegatePicker({
   }, [delegates, value]);
 
   if (!selectedDelegate) return null;
+  const canOpenMenu = delegates.length > 1 || Boolean(onCreateDelegate);
 
   return (
     <div className="ai-delegate-picker" data-ai-delegate-picker>
@@ -75,14 +77,16 @@ export default function AiDelegatePicker({
       <button
         type="button"
         className={`ai-delegate-picker-button ${open ? "is-open" : ""}`}
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          if (canOpenMenu) setOpen((current) => !current);
+        }}
         aria-haspopup="listbox"
         aria-expanded={open}
       >
         <DelegateSummary delegate={selectedDelegate} defaultAvatar={defaultAvatar} />
-        <IoChevronDown className={`shrink-0 text-[1rem] transition-transform ${open ? "rotate-180" : ""}`} />
+        {canOpenMenu && <IoChevronDown className={`shrink-0 text-[1rem] transition-transform ${open ? "rotate-180" : ""}`} />}
       </button>
-      {open && delegates.length > 1 && (
+      {open && canOpenMenu && (
         <div className="ai-delegate-picker-menu" role="listbox">
           {delegates.map((delegate) => {
             const isSelected = String(delegate.id || "") === String(selectedDelegate.id || "");
@@ -103,6 +107,26 @@ export default function AiDelegatePicker({
               </button>
             );
           })}
+          {onCreateDelegate && (
+            <button
+              type="button"
+              className="ai-delegate-picker-option ai-delegate-picker-create"
+              onClick={() => {
+                setOpen(false);
+                onCreateDelegate();
+              }}
+            >
+              <span className="ai-delegate-picker-avatar ai-delegate-picker-create-icon">
+                <IoAdd />
+              </span>
+              <span className="min-w-0 flex-1 text-left">
+                <span className="block text-[0.82rem] font-black text-[var(--text-black)]">+ Create AI delegate</span>
+                <span className="mt-0.5 block text-[0.68rem] font-semibold text-[var(--text-gray-light)]">
+                  Open AI Genesis, then refresh this picker.
+                </span>
+              </span>
+            </button>
+          )}
         </div>
       )}
       {disabledCount > 0 && (

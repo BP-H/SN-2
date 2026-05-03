@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
+  IoBarChartOutline,
   IoCheckmark,
   IoClose,
   IoChatbubbleEllipsesOutline,
+  IoDocumentTextOutline,
   IoImageOutline,
   IoSparklesOutline,
   IoVideocamOutline,
@@ -64,6 +66,7 @@ export default function AiDelegateActionModal({
   open,
   mode = "review",
   target = {},
+  composerContext = {},
   onClose,
   onApproved,
   onCanceled,
@@ -79,6 +82,7 @@ export default function AiDelegateActionModal({
   const [reviewBusy, setReviewBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [createHandoffOpen, setCreateHandoffOpen] = useState(false);
 
   useEffect(() => setMounted(true), []);
 
@@ -97,10 +101,10 @@ export default function AiDelegateActionModal({
 
   const modeConfig = {
     review: {
-      title: draftAction ? "Review ready" : "Generate AI review",
+      title: draftAction ? "Review ready" : "AI delegate review",
       eyebrow: "AI delegate review",
-      description: "Review from the delegate's locked charter. Approval publishes one AI vote and rationale comment.",
-      button: "Generate AI review",
+      description: "",
+      button: "Review",
       endpoint: `${API_BASE_URL}/connector/actions/draft-ai-delegate-review`,
       approveEndpoint: (id) => `${API_BASE_URL}/connector/actions/${id}/approve-ai-review`,
       draftType: "draft_ai_review",
@@ -109,18 +113,21 @@ export default function AiDelegateActionModal({
     comment: {
       title: draftAction ? "Comment ready" : "Generate AI comment",
       eyebrow: "AI-authored comment",
-      description: "The delegate writes from its own persona. Approval publishes one AI-labeled comment.",
-      button: "Generate AI comment",
+      description: "",
+      button: "Comment",
       endpoint: `${API_BASE_URL}/connector/actions/draft-ai-delegate-comment`,
       approveEndpoint: (id) => `${API_BASE_URL}/connector/actions/${id}/approve-ai-comment`,
       draftType: "draft_ai_comment",
       Icon: IoChatbubbleEllipsesOutline,
     },
     composer_assist: {
-      title: "Draft as AI",
-      eyebrow: "Composer AI",
-      description: "Post drafts are next. Delegates can generate reviews and comments for approval today.",
-      button: "Post drafts deferred",
+      title: draftAction ? "AI post ready" : "AI post",
+      eyebrow: "AI delegate post",
+      description: "",
+      button: "Post",
+      endpoint: `${API_BASE_URL}/connector/actions/draft-ai-delegate-post`,
+      approveEndpoint: (id) => `${API_BASE_URL}/connector/actions/${id}/approve-ai-post`,
+      draftType: "draft_ai_post",
       Icon: IoSparklesOutline,
     },
   }[mode] || {};
@@ -128,7 +135,12 @@ export default function AiDelegateActionModal({
   const summary = draftAction?.draft_payload || {};
   const isReview = mode === "review";
   const isComment = mode === "comment";
-  const canGenerate = Boolean(userData?.name && selectedDelegate && target?.id && (isReview || isComment));
+  const isComposerAssist = mode === "composer_assist";
+  const canGenerate = Boolean(
+    userData?.name &&
+      selectedDelegate &&
+      ((target?.id && (isReview || isComment)) || isComposerAssist)
+  );
   const indicators = mediaIndicators(target);
 
   useEffect(() => {
@@ -137,18 +149,17 @@ export default function AiDelegateActionModal({
     setNotice("");
     setError("");
     setFocus("");
+    setCreateHandoffOpen(false);
   }, [open, mode, target?.id]);
 
-  useEffect(() => {
-    if (!open || !userData?.name) return undefined;
-    const controller = new AbortController();
-    async function loadDelegates() {
+  const loadDelegates = useCallback(
+    async (signal) => {
       setLoadingDelegates(true);
       setError("");
       try {
         const response = await fetch(`${API_BASE_URL}/ai/delegates`, {
           headers: authHeaders(),
-          signal: controller.signal,
+          signal,
         });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload?.detail || "Unable to load AI delegates.");
@@ -162,12 +173,18 @@ export default function AiDelegateActionModal({
           setError(formatBackendAuthErrorMessage(err, "Unable to load AI delegates."));
         }
       } finally {
-        if (!controller.signal.aborted) setLoadingDelegates(false);
+        if (!signal?.aborted) setLoadingDelegates(false);
       }
-    }
-    loadDelegates();
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!open || !userData?.name) return undefined;
+    const controller = new AbortController();
+    loadDelegates(controller.signal);
     return () => controller.abort();
-  }, [open, userData?.name]);
+  }, [loadDelegates, open, userData?.name]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -207,11 +224,24 @@ export default function AiDelegateActionModal({
     setDraftAction(null);
     try {
       requireBackendAuthSession();
-      const body = {
-        username: userData.name,
-        proposal_id: Number(target.id),
-        ...selectedDelegatePayload(selectedDelegate),
-      };
+      const body = isComposerAssist
+        ? {
+            username: userData.name,
+            ...selectedDelegatePayload(selectedDelegate),
+            current_text: composerContext.current_text || target.text || "",
+            focus,
+            media_type: composerContext.media_type || "",
+            media_label: composerContext.media_label || "",
+            image_count: Number(composerContext.image_count || 0),
+            governance_kind: composerContext.governance_kind || "post",
+            decision_level: composerContext.decision_level || "",
+            voting_days: composerContext.voting_days || undefined,
+          }
+        : {
+            username: userData.name,
+            proposal_id: Number(target.id),
+            ...selectedDelegatePayload(selectedDelegate),
+          };
       if (isComment) body.instruction = focus;
       const response = await fetch(modeConfig.endpoint, {
         method: "POST",
@@ -225,7 +255,13 @@ export default function AiDelegateActionModal({
         action_type: payload?.action_proposal?.action_type || modeConfig.draftType,
         draft_payload: payload?.summary || {},
       });
-      setNotice(isReview ? "Review ready. Approve or cancel here." : "Comment ready. Approve or cancel here.");
+      setNotice(
+        isComposerAssist
+          ? "AI post ready. Approve or cancel here."
+          : isReview
+          ? "Review ready. Approve or cancel here."
+          : "Comment ready. Approve or cancel here."
+      );
     } catch (err) {
       setError(cleanError(err, "Unable to generate AI draft."));
     } finally {
@@ -261,6 +297,7 @@ export default function AiDelegateActionModal({
         onCanceled?.(payload, draftAction);
       }
       setDraftAction(null);
+      window.setTimeout(() => onClose?.(), 650);
     } catch (err) {
       setError(cleanError(err, "Unable to update AI draft."));
     } finally {
@@ -271,6 +308,27 @@ export default function AiDelegateActionModal({
   if (!open || !mounted) return null;
 
   const Icon = modeConfig.Icon || IoSparklesOutline;
+  const showHeaderTitle = Boolean(draftAction);
+  const createDelegateCard = (
+    <div className="ai-delegate-create-card mt-4 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.045] p-3">
+      <p className="text-[0.88rem] font-black text-[var(--text-black)]">Create an AI delegate</p>
+      <p className="mt-1 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">
+        AI Genesis creates a visible delegate with a call-sign, traits, and a locked persona. Return here and refresh the picker.
+      </p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <Link href="/settings/ai-delegates" onClick={onClose} className="ai-delegate-primary inline-flex rounded-full px-3 py-2 text-[0.74rem] font-black">
+          Create AI delegate
+        </Link>
+        <button
+          type="button"
+          onClick={() => loadDelegates()}
+          className="ai-delegate-secondary rounded-full px-3 py-2 text-[0.74rem] font-black"
+        >
+          Refresh delegates
+        </button>
+      </div>
+    </div>
+  );
 
   return createPortal(
     <div
@@ -283,16 +341,21 @@ export default function AiDelegateActionModal({
       }}
     >
       <section className="ai-delegate-modal-card ai-delegate-modal-shell-compact">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="flex items-center gap-2 text-[0.68rem] font-black uppercase tracking-[0.16em] text-[var(--pink)]">
               <Icon className="text-[0.95rem]" />
               {modeConfig.eyebrow}
             </p>
-            <h2 id="ai-delegate-modal-title" className="mt-2 text-[1.25rem] font-black text-[var(--text-black)]">
+            <h2
+              id="ai-delegate-modal-title"
+              className={showHeaderTitle ? "mt-1 text-[1.05rem] font-black text-[var(--text-black)]" : "sr-only"}
+            >
               {modeConfig.title}
             </h2>
-            <p className="mt-1 text-[0.82rem] leading-5 text-[var(--text-gray-light)]">{modeConfig.description}</p>
+            {modeConfig.description && (
+              <p className="mt-1 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">{modeConfig.description}</p>
+            )}
           </div>
           <button
             type="button"
@@ -324,75 +387,113 @@ export default function AiDelegateActionModal({
             <p className="mt-1 text-[0.78rem] leading-5 text-[var(--text-gray-light)]">
               AI delegates review, comment, and draft from their own persona. Publication requires your approval.
             </p>
-            <Link href="/settings/ai-delegates" onClick={onClose} className="ai-delegate-primary mt-4 inline-flex rounded-full px-4 py-2 text-[0.78rem] font-black">
-              Create AI delegate
-            </Link>
+            {createDelegateCard}
           </div>
         ) : (
           <>
-            <div className="ai-delegate-context-compact mt-4 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.045] p-3">
-              <p className="text-[0.68rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">Post context</p>
-              <p className="mt-1 line-clamp-1 text-[0.9rem] font-bold text-[var(--text-black)]">{target.title || "Selected post"}</p>
-              {target.author && (
-                <p className="mt-0.5 text-[0.68rem] font-semibold text-[var(--text-gray-light)]">
-                  @{target.author}{target.species ? ` - ${target.species}` : ""}
-                </p>
-              )}
-              <p className="mt-1 line-clamp-2 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">{target.text || "No post text available."}</p>
-              {indicators.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1.5 text-[0.64rem] font-bold uppercase tracking-[0.1em] text-[var(--text-gray-light)]">
-                  {indicators.map((indicator) => (
-                    <span key={indicator} className="rounded-full bg-white/[0.06] px-2 py-1">
-                      {indicator}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {target.text && String(target.text).length > 180 && (
-                <details className="mt-2 text-[0.72rem] text-[var(--text-gray-light)]">
-                  <summary className="cursor-pointer font-bold text-[var(--pink)]">More context</summary>
-                  <p className="mt-1 max-h-24 overflow-y-auto leading-5">{target.text}</p>
-                </details>
-              )}
-            </div>
+            {!isComposerAssist && (
+              <div className="ai-delegate-context-compact mt-3 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.045] p-3">
+                <p className="text-[0.68rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">Post context</p>
+                <p className="mt-1 line-clamp-1 text-[0.9rem] font-bold text-[var(--text-black)]">{target.title || "Selected post"}</p>
+                {target.author && (
+                  <p className="mt-0.5 text-[0.68rem] font-semibold text-[var(--text-gray-light)]">
+                    @{target.author}{target.species ? ` - ${target.species}` : ""}
+                  </p>
+                )}
+                <p className="mt-1 line-clamp-2 text-[0.76rem] leading-5 text-[var(--text-gray-light)]">{target.text || "No post text available."}</p>
+                {indicators.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-[0.64rem] font-bold uppercase tracking-[0.1em] text-[var(--text-gray-light)]">
+                    {indicators.map((indicator) => (
+                      <span key={indicator} className="rounded-full bg-white/[0.06] px-2 py-1">
+                        {indicator}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {target.text && String(target.text).length > 180 && (
+                  <details className="mt-2 text-[0.72rem] text-[var(--text-gray-light)]">
+                    <summary className="cursor-pointer font-bold text-[var(--pink)]">More context</summary>
+                    <p className="mt-1 max-h-24 overflow-y-auto leading-5">{target.text}</p>
+                  </details>
+                )}
+              </div>
+            )}
 
-            <div className="mt-4">
-              <AiDelegatePicker
-                delegates={activeDelegates}
-                value={selectedDelegateId || String(selectedDelegate?.id || "")}
-                onChange={(nextId) => {
-                  setSelectedDelegateId(nextId);
-                  setDraftAction(null);
-                  setNotice("");
-                }}
-                defaultAvatar={defaultAvatar}
-                disabledCount={disabledDelegateCount}
-              />
+            <div className="mt-3">
+              <div className="ai-delegate-picker-line">
+                <div className="min-w-0 flex-1">
+                  <AiDelegatePicker
+                    delegates={activeDelegates}
+                    value={selectedDelegateId || String(selectedDelegate?.id || "")}
+                    onChange={(nextId) => {
+                      setSelectedDelegateId(nextId);
+                      setDraftAction(null);
+                      setNotice("");
+                    }}
+                    defaultAvatar={defaultAvatar}
+                    disabledCount={disabledDelegateCount}
+                    onCreateDelegate={() => setCreateHandoffOpen((value) => !value)}
+                  />
+                </div>
+                {!draftAction && (
+                  <button
+                    type="button"
+                    onClick={generateDraft}
+                    disabled={busy || !canGenerate}
+                    className="ai-delegate-generate-icon disabled:opacity-55"
+                    aria-label={busy ? "Generating AI draft" : modeConfig.button}
+                    title={busy ? "Generating" : modeConfig.button}
+                  >
+                    <Icon />
+                  </button>
+                )}
+              </div>
+              {createHandoffOpen && createDelegateCard}
             </div>
 
             {(isComment || mode === "composer_assist") && !draftAction && (
               <label className="mt-4 block text-[0.68rem] font-black uppercase tracking-[0.14em] text-[var(--text-gray-light)]">
-                {isComment ? "Focus" : "Draft focus"}
+                {isComment ? "Focus" : "Post focus"}
                 <input
                   value={focus}
                   onChange={(event) => setFocus(event.target.value.slice(0, 240))}
-                  placeholder={isComment ? "What should the AI consider?" : "What should the AI help draft?"}
+                  placeholder={isComment ? "What should the AI consider?" : "What should this AI post consider?"}
                   className="ai-delegate-select mt-2 w-full rounded-[0.95rem] px-3 py-2.5 text-[0.84rem] normal-case tracking-normal"
                 />
               </label>
             )}
 
-            {mode === "composer_assist" ? (
-              <div className="mt-4 rounded-[1rem] border border-[var(--horizontal-line)] bg-white/[0.045] p-4">
-                <div className="flex flex-wrap gap-2">
-                  <span className="ai-delegate-chip">Text</span>
-                  <span className="ai-delegate-chip">Proposal framing</span>
-                  <span className="ai-delegate-chip opacity-65"><IoImageOutline /> Image draft deferred</span>
-                  <span className="ai-delegate-chip opacity-65"><IoVideocamOutline /> Video draft deferred</span>
-                </div>
-                <p className="mt-3 text-[0.78rem] leading-5 text-[var(--text-gray-light)]">
-                  Official AI-authored post publishing is intentionally deferred. Use post cards and comments to generate approval-required AI reviews and comments today.
+            {mode === "composer_assist" && !draftAction ? (
+              <div className="mt-3 flex flex-wrap gap-2" aria-label="AI post context modes">
+                <span className="ai-delegate-mode-icon" title="Text"><IoDocumentTextOutline /><span className="sr-only">Text</span></span>
+                <span className="ai-delegate-mode-icon" title="Proposal framing"><IoBarChartOutline /><span className="sr-only">Proposal framing</span></span>
+                <span className="ai-delegate-mode-icon opacity-65" title="Image metadata"><IoImageOutline /><span className="sr-only">Image metadata</span></span>
+                <span className="ai-delegate-mode-icon opacity-65" title="Video metadata"><IoVideocamOutline /><span className="sr-only">Video metadata</span></span>
+              </div>
+            ) : isComposerAssist && draftAction ? (
+              <div className="ai-delegate-preview-card mt-4 rounded-[1rem] p-3">
+                <p className="text-[0.68rem] font-black uppercase tracking-[0.14em] text-[var(--pink)]">
+                  AI post ready
                 </p>
+                {(summary.generated_title || summary.title) && (
+                  <p className="mt-2 text-[0.88rem] font-black text-[var(--text-black)]">{summary.generated_title || summary.title}</p>
+                )}
+                <p className="mt-2 max-h-44 overflow-y-auto whitespace-pre-line text-[0.82rem] leading-5 text-[var(--text-black)]">
+                  {summary.generated_post_body || summary.body || "AI-authored post generated from the locked charter."}
+                </p>
+                {(summary.governance_framing || summary.media_caption_guidance) && (
+                  <details className="mt-2 text-[0.7rem] leading-5 text-[var(--text-gray-light)]">
+                    <summary className="cursor-pointer font-bold text-[var(--pink)]">Draft notes</summary>
+                    {summary.governance_framing && <p className="mt-1">{summary.governance_framing}</p>}
+                    {summary.media_caption_guidance && <p className="mt-1">{summary.media_caption_guidance}</p>}
+                  </details>
+                )}
+                <div className="mt-3 grid gap-1 text-[0.66rem] leading-4 text-[var(--text-gray-light)] sm:grid-cols-2">
+                  <p><span className="font-bold text-[var(--text-black)]">Model:</span> {summary.model_identity || "server/fallback"}</p>
+                  <p><span className="font-bold text-[var(--text-black)]">Generation:</span> {generationSourceLabel(summary.generation_source)}</p>
+                  {summary.context_hash && <p><span className="font-bold text-[var(--text-black)]">Context:</span> {compactHash(summary.context_hash)}</p>}
+                  {summary.content_hash && <p><span className="font-bold text-[var(--text-black)]">Content:</span> {compactHash(summary.content_hash)}</p>}
+                </div>
               </div>
             ) : draftAction ? (
               <div className="ai-delegate-preview-card mt-4 rounded-[1rem] p-4">
@@ -420,22 +521,12 @@ export default function AiDelegateActionModal({
                   {summary.content_hash && <p><span className="font-bold text-[var(--text-black)]">Content:</span> {compactHash(summary.content_hash)}</p>}
                 </div>
               </div>
-            ) : (
-              <button
-                type="button"
-                onClick={generateDraft}
-                disabled={busy || !canGenerate}
-                className="ai-delegate-primary mt-4 w-full rounded-full px-4 py-2.5 text-[0.84rem] font-black disabled:opacity-55"
-              >
-                {busy ? "Generating..." : modeConfig.button}
-              </button>
-            )}
+            ) : null}
 
-            <div className="mt-4 rounded-[0.9rem] bg-white/[0.04] px-3 py-2 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
-              Real model generation requires OPENAI_API_KEY on the backend service.
-              <details className="mt-1">
+            <div className="mt-3 rounded-[0.9rem] bg-white/[0.04] px-3 py-2 text-[0.72rem] leading-5 text-[var(--text-gray-light)]">
+              <details>
                 <summary className="cursor-pointer font-bold text-[var(--pink)]">Safety</summary>
-                <p className="mt-1">AI-authored delegate actions are approval-required. You cannot edit official AI reasoning or content before publishing.</p>
+                <p className="mt-1">AI-authored delegate actions are approval-required. You cannot edit official AI reasoning or content before publishing. Server model generation uses backend configuration when available.</p>
               </details>
             </div>
           </>

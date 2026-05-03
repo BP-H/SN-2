@@ -46,6 +46,8 @@ function InputFields({
   autoFocus = false,
   autoOpenMediaType = "",
   onAutoOpenConsumed,
+  autoOpenAi = false,
+  onAutoOpenAiConsumed,
 }) {
   const { userData, defaultAvatar, isAuthenticated } = useUser();
   const queryClient = useQueryClient();
@@ -183,6 +185,12 @@ function InputFields({
       inputMap[autoOpenMediaType]?.current?.click();
     }, 80);
   }, [autoOpenMediaType, onAutoOpenConsumed]);
+
+  useEffect(() => {
+    if (!autoOpenAi) return;
+    setAiComposerOpen(true);
+    onAutoOpenAiConsumed?.();
+  }, [autoOpenAi, onAutoOpenAiConsumed]);
 
   useEffect(() => {
     setPreviewIndex(0);
@@ -762,6 +770,19 @@ function InputFields({
     );
   };
 
+  const composerAiContext = {
+    current_text: text,
+    media_type: mediaType,
+    media_label:
+      mediaType === "image"
+        ? `${selectedFiles.length} selected image${selectedFiles.length === 1 ? "" : "s"}`
+        : selectedFile?.name || mediaValue || "",
+    image_count: mediaType === "image" ? selectedFiles.length : 0,
+    governance_kind: isDecisionMode ? "decision" : "post",
+    decision_level: isDecisionMode ? decisionLevel : "",
+    voting_days: isDecisionMode ? votingDays : undefined,
+  };
+
   const renderContent = () => (
     <div className="flex flex-col gap-3 text-[var(--text-black)]">
       <div className="relative">
@@ -881,7 +902,15 @@ function InputFields({
         open={aiComposerOpen}
         mode="composer_assist"
         target={{ title: proposalMode === "decision" ? "Decision composer" : "Post composer", text }}
+        composerContext={composerAiContext}
         onClose={() => setAiComposerOpen(false)}
+        onApproved={() => {
+          setAiComposerOpen(false);
+          setNotify(["AI post published as the selected delegate."]);
+          refetchPosts?.();
+          queryClient.invalidateQueries({ queryKey: ["home-feed"] });
+          queryClient.invalidateQueries({ queryKey: ["proposals"] });
+        }}
       />
 
       {renderMediaPreview()}
