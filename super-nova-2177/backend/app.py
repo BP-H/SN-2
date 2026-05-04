@@ -956,6 +956,8 @@ def _uploads_url(value: str) -> str:
         return ""
     if media.startswith(("http://", "https://", "data:", "blob:", "/uploads/")):
         return media
+    if media.startswith("uploads/"):
+        return f"/{media}"
     return f"/uploads/{media}"
 
 
