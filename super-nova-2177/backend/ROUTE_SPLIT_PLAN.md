@@ -36,6 +36,25 @@ semantics must stay unchanged during each extraction.
 - Notes: Redis-backed counters are deferred; rollback switch remains
   `SUPERNOVA_RATE_LIMIT_ENABLED=false`.
 
+### Messages
+
+- Module: `backend/routers/messages.py`
+- Paths: `GET /messages`, `POST /messages`
+- Dependencies kept in `app.py`: `get_db`, `DirectMessageIn`, `_safe_user_key`,
+  `_require_token_identity_match`, `_canonical_username_from_alias`,
+  `_conversation_id`, `_ensure_direct_messages_table`, `_message_payload`,
+  `_read_messages_store`, `_write_messages_store`
+- Models/tables: `direct_messages`, `Harmonizer` for auth/user resolution where
+  available; fallback `messages_store.json`
+- Auth: bearer token required for current-user conversation reads and sends; username
+  alias matching remains important after profile username changes
+- Frontend surfaces: messages section/conversation list, message composer
+- Existing tests: `test_messages_pagination.py`, `test_auth_bound_write_routes.py`,
+  `test_message_routes_extraction.py`
+- Risk: low-medium, already extracted
+- Notes: route paths, response shapes, direct table behavior, fallback JSON store
+  behavior, pagination, and auth semantics are intended to be unchanged.
+
 ## Route Groups Still In `backend/app.py`
 
 ### Auth / Profile / Session
@@ -217,28 +236,6 @@ semantics must stay unchanged during each extraction.
 - Extraction notes: split after messages/uploads/follows. Keep official AI-authored
   content server-generated and approval-required.
 
-### Messages
-
-- Paths:
-  - `GET /messages`
-  - `POST /messages`
-- Current helper dependencies: `_ensure_direct_messages_table`,
-  `_ensure_direct_messages_read_indexes`, `_message_payload`,
-  `_require_token_identity_match`, `_optional_token_identity_match`, username alias
-  helpers, fallback JSON store helpers
-- Models/tables: `direct_messages`, `Harmonizer` for user resolution where available;
-  fallback `messages_store.json`
-- Auth requirements: bearer token required for current-user conversation reads and
-  sends; username alias matching is important after profile username changes
-- Frontend surfaces: messages section/conversation list, message composer
-- Existing tests: `test_messages_pagination.py`
-- Missing tests before extraction: explicit username-alias read/send after username
-  changes; session-expired UX regression coverage belongs to frontend later
-- Risk: low-medium
-- Recommended module: `routers/messages.py`
-- Extraction notes: recommended next extraction candidate because the surface is bounded
-  and already has pagination/alias-oriented tests.
-
 ### Follows / Social Graph
 
 - Paths:
@@ -369,15 +366,13 @@ semantics must stay unchanged during each extraction.
 
 ## Recommended Next Extraction Order To Evaluate
 
-1. `routers/messages.py` - bounded surface, alias-sensitive tests already exist, low
-   coupling compared with proposals/comments/AI.
-2. `routers/uploads.py` - compact route set, upload limits already tested; keep static
+1. `routers/uploads.py` - compact route set, upload limits already tested; keep static
    mount behavior unchanged.
-3. `routers/social_graph.py` - follows/social graph is moderately bounded, but profile
+2. `routers/social_graph.py` - follows/social graph is moderately bounded, but profile
    counts and fallback JSON parity need snapshots.
-4. `routers/ai_delegates.py` / `routers/ai_actions.py` - important and test-covered,
+3. `routers/ai_delegates.py` / `routers/ai_actions.py` - important and test-covered,
    but high risk because it publishes AI-authored content after approval.
-5. `routers/proposals.py`, `routers/comments.py`, and vote/system-vote routes last -
+4. `routers/proposals.py`, `routers/comments.py`, and vote/system-vote routes last -
    central, intertwined, and easiest to regress.
 
 ## Extraction Checklist For Future PRs

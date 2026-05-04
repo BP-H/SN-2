@@ -66,6 +66,11 @@ try:
 except ImportError:  # pragma: no cover - supports running backend/app.py directly
     from status_routes import build_supernova_runtime_payload, create_status_router
 
+try:
+    from .routers.messages import create_messages_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from routers.messages import create_messages_router
+
 
 _runtime = _load_supernova_runtime()
 SUPER_NOVA_AVAILABLE = _runtime['available']
@@ -7810,165 +7815,18 @@ def unfollow_user(
     return {"following": False, "follower": follower, "target": target}
 
 
-@app.get("/messages", summary="Get direct messages or conversation summaries")
-def get_messages(
-    user: str = Query(...),
-    peer: Optional[str] = Query(None),
-    limit: Optional[int] = Query(None),
-    offset: int = Query(0),
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    current = _safe_user_key(user)
-    if not current:
-        raise HTTPException(status_code=400, detail="user is required")
-    current_user = _require_token_identity_match(authorization, db, user)
-    canonical_user = (getattr(current_user, "username", None) or _canonical_username_from_alias(db, user) or user).strip()
-    current = _safe_user_key(canonical_user)
-    canonical_peer = _canonical_username_from_alias(db, peer) if peer else None
-    has_pagination = limit is not None
-    safe_limit = max(1, min(int(limit), 500)) if has_pagination else None
-    safe_offset = max(0, int(offset or 0))
-
-    try:
-        _ensure_direct_messages_table(db)
-        if canonical_peer:
-            cid = _conversation_id(canonical_user, canonical_peer)
-            if has_pagination:
-                rows = db.execute(
-                    text(
-                        "SELECT id, conversation_id, sender, recipient, body, created_at "
-                        "FROM direct_messages WHERE conversation_id = :cid "
-                        "ORDER BY created_at ASC, id ASC LIMIT :limit OFFSET :offset"
-                    ),
-                    {"cid": cid, "limit": safe_limit, "offset": safe_offset},
-                ).fetchall()
-            else:
-                rows = db.execute(
-                    text(
-                        "SELECT id, conversation_id, sender, recipient, body, created_at "
-                        "FROM direct_messages WHERE conversation_id = :cid ORDER BY created_at ASC"
-                    ),
-                    {"cid": cid},
-                ).fetchall()
-            return {"peer": canonical_peer, "messages": [_message_payload(row) for row in rows]}
-
-        rows = db.execute(
-            text(
-                "SELECT id, conversation_id, sender, recipient, body, created_at "
-                "FROM direct_messages "
-                "WHERE lower(sender) = :current OR lower(recipient) = :current "
-                "ORDER BY created_at DESC LIMIT 1000"
-            ),
-            {"current": current},
-        ).fetchall()
-        conversations: Dict[str, Dict[str, Any]] = {}
-        for row in rows:
-            message = _message_payload(row)
-            sender = _safe_user_key(message.get("sender", ""))
-            recipient = _safe_user_key(message.get("recipient", ""))
-            peer_name = message.get("sender") if recipient == current else message.get("recipient")
-            key = _safe_user_key(peer_name)
-            if not key or key in conversations:
-                continue
-            conversations[key] = {
-                "peer": peer_name,
-                "last_message": message,
-                "updated_at": message.get("created_at", ""),
-            }
-
-        sorted_conversations = sorted(
-            conversations.values(),
-            key=lambda item: item.get("updated_at", ""),
-            reverse=True,
-        )
-        if has_pagination:
-            sorted_conversations = sorted_conversations[safe_offset:safe_offset + safe_limit]
-        return {"conversations": sorted_conversations}
-    except Exception:
-        db.rollback()
-
-    messages = _read_messages_store()
-    if canonical_peer:
-        cid = _conversation_id(canonical_user, canonical_peer)
-        thread = [message for message in messages if message.get("conversation_id") == cid]
-        sorted_thread = sorted(thread, key=lambda item: item.get("created_at", ""))
-        if has_pagination:
-            sorted_thread = sorted_thread[safe_offset:safe_offset + safe_limit]
-        return {"peer": canonical_peer, "messages": sorted_thread}
-
-    conversations: Dict[str, Dict[str, Any]] = {}
-    for message in messages:
-        sender = _safe_user_key(message.get("sender", ""))
-        recipient = _safe_user_key(message.get("recipient", ""))
-        if current not in {sender, recipient}:
-            continue
-        peer_name = message.get("sender") if recipient == current else message.get("recipient")
-        key = _safe_user_key(peer_name)
-        conversations[key] = {
-            "peer": peer_name,
-            "last_message": message,
-            "updated_at": message.get("created_at", ""),
-        }
-
-    sorted_conversations = sorted(
-        conversations.values(),
-        key=lambda item: item.get("updated_at", ""),
-        reverse=True,
-    )
-    if has_pagination:
-        sorted_conversations = sorted_conversations[safe_offset:safe_offset + safe_limit]
-    return {"conversations": sorted_conversations}
-
-
-@app.post("/messages", summary="Send a direct message")
-def send_message(
-    payload: DirectMessageIn,
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    requested_sender = payload.sender.strip()
-    recipient = payload.recipient.strip()
-    body = payload.body.strip()
-    if not requested_sender:
-        raise HTTPException(status_code=400, detail="sender is required")
-    if not recipient:
-        raise HTTPException(status_code=400, detail="recipient is required")
-    current_user = _require_token_identity_match(authorization, db, requested_sender)
-    sender = (getattr(current_user, "username", None) or _canonical_username_from_alias(db, requested_sender) or requested_sender).strip()
-    recipient = _canonical_username_from_alias(db, recipient)
-    if _safe_user_key(sender) == _safe_user_key(recipient):
-        raise HTTPException(status_code=400, detail="Choose another user to message")
-    if not body:
-        raise HTTPException(status_code=400, detail="Write a message first")
-
-    messages = _read_messages_store()
-    message = {
-        "id": uuid.uuid4().hex,
-        "conversation_id": _conversation_id(sender, recipient),
-        "sender": sender,
-        "recipient": recipient,
-        "body": body,
-        "created_at": datetime.datetime.utcnow().isoformat() + "Z",
-    }
-    try:
-        _ensure_direct_messages_table(db)
-        db.execute(
-            text(
-                "INSERT INTO direct_messages "
-                "(id, conversation_id, sender, recipient, body, created_at) "
-                "VALUES (:id, :conversation_id, :sender, :recipient, :body, :created_at)"
-            ),
-            message,
-        )
-        db.commit()
-        return message
-    except Exception:
-        db.rollback()
-
-    messages.append(message)
-    _write_messages_store(messages[-1000:])
-    return message
+app.include_router(create_messages_router(
+    get_db=get_db,
+    direct_message_model=DirectMessageIn,
+    safe_user_key=_safe_user_key,
+    require_token_identity_match=lambda *args, **kwargs: _require_token_identity_match(*args, **kwargs),
+    canonical_username_from_alias=_canonical_username_from_alias,
+    conversation_id=_conversation_id,
+    ensure_direct_messages_table=_ensure_direct_messages_table,
+    message_payload=_message_payload,
+    read_messages_store=_read_messages_store,
+    write_messages_store=_write_messages_store,
+))
 
 
 @app.post(
