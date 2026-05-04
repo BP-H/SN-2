@@ -10,6 +10,7 @@ class RouteSplitPlanTests(unittest.TestCase):
     def test_route_split_guardrail_files_exist(self):
         self.assertTrue((BACKEND_DIR / "commons_rate_limits.py").exists())
         self.assertTrue((BACKEND_DIR / "status_routes.py").exists())
+        self.assertTrue((BACKEND_DIR / "routers" / "messages.py").exists())
         self.assertTrue((BACKEND_DIR / "ROUTE_SPLIT_PLAN.md").exists())
 
     def test_route_split_plan_names_next_safe_candidates(self):
@@ -17,7 +18,6 @@ class RouteSplitPlanTests(unittest.TestCase):
 
         self.assertIn("Recommended Next Extraction Order To Evaluate", plan)
         for expected in [
-            "routers/messages.py",
             "routers/uploads.py",
             "routers/social_graph.py",
             "routers/ai_delegates.py",
