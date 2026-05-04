@@ -120,6 +120,25 @@ semantics must stay unchanged during each extraction.
 - Notes: AI action drafting, approval, cancellation, publishing, system AI proposal
   review, and AI review ledger routes intentionally remain in `app.py`.
 
+### AI Read-Only System Reviews
+
+- Module: `backend/routers/ai_readonly.py`
+- Paths: `GET /proposals/{proposal_id}/system-ai-review`,
+  `GET /proposals/{proposal_id}/ai-review-ledger`
+- Dependencies kept in `app.py`: `get_db`, `_connector_get_proposal_or_404`,
+  `_system_ai_actor_payload`, `_generate_locked_ai_review`, `ConnectorActionProposal`,
+  `_connector_action_payload`, `ProposalVote`, `Harmonizer`, `_social_avatar`,
+  `_format_timestamp`, `_public_ai_actor_payload`, `_connector_proposal_title`
+- Models/tables: read-only proposal lookup, `connector_action_proposals`,
+  `proposal_votes`, `Harmonizer`, `ai_actors`
+- Auth: public read-only
+- Frontend surfaces: proposal card/detail System AI review, tri-species AI review ledger
+- Existing tests: `test_ai_actor_system_review.py`,
+  `test_ai_readonly_routes_extraction.py`
+- Risk: medium, already extracted
+- Notes: advisory/manual-preview-only semantics are preserved. No connector action draft,
+  approval, cancellation, or publication route moved in this split.
+
 ## Route Groups Still In `backend/app.py`
 
 ### Auth / Profile / Session
@@ -250,11 +269,9 @@ semantics must stay unchanged during each extraction.
   `votes_router.py` as-is until alias parity is added
 - Extraction notes: do not change vote math or species weighting in a route split PR.
 
-### AI Actions / System AI Proposal Reviews
+### AI Actions / Connector Drafts And Approvals
 
 - Paths:
-  - `GET /proposals/{proposal_id}/system-ai-review`
-  - `GET /proposals/{proposal_id}/ai-review-ledger`
   - `GET /connector/actions`
   - `POST /connector/actions/{action_id}/cancel`
   - `POST /connector/actions/draft-vote`
@@ -275,8 +292,7 @@ semantics must stay unchanged during each extraction.
   custody/status guards
 - Models/tables: `ai_actors`, `connector_action_proposals`, `Proposal`, `Comment`,
   `ProposalVote`, `Harmonizer`, `ProposalCollab`
-- Auth requirements: custodian bearer token required for draft/approval actions; public
-  reads for system AI reviews and ledgers
+- Auth requirements: custodian bearer token required for draft/approval actions
 - Frontend surfaces: AI Genesis, AI profile, AI delegate modal, AI Actions inbox,
   proposal card Ask AI, comment AI, composer AI, AssistantOrb
 - Existing tests: `test_ai_delegate_management.py`,
@@ -374,7 +390,7 @@ semantics must stay unchanged during each extraction.
 ## Recommended Next Extraction Order To Evaluate
 
 1. `routers/ai_actions.py` - important and test-covered, but high risk because it
-   publishes AI-authored content after approval.
+   drafts and publishes AI-authored content after approval.
 2. `routers/proposals.py`, `routers/comments.py`, and vote/system-vote routes last -
    central, intertwined, and easiest to regress.
 

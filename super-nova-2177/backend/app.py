@@ -86,6 +86,11 @@ try:
 except ImportError:  # pragma: no cover - supports running backend/app.py directly
     from routers.ai_delegates import create_ai_delegates_router
 
+try:
+    from .routers.ai_readonly import create_ai_readonly_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from routers.ai_readonly import create_ai_readonly_router
+
 
 _runtime = _load_supernova_runtime()
 SUPER_NOVA_AVAILABLE = _runtime['available']
@@ -5090,114 +5095,20 @@ app.include_router(create_ai_delegates_router(
 ))
 
 
-@app.get("/proposals/{proposal_id}/system-ai-review", summary="Read the advisory SuperNova Protocol AI review")
-def get_system_ai_review(proposal_id: int, db: Session = Depends(get_db)):
-    proposal = _connector_get_proposal_or_404(db, proposal_id)
-    actor = _system_ai_actor_payload()
-    review = _generate_locked_ai_review(
-        proposal=proposal,
-        actor_payload=actor,
-        allow_caution=True,
-    )
-    return {
-        "mode": "public_read_only",
-        "actor": actor,
-        "review": {
-            **review,
-            "ai_actor_id": actor["id"],
-            "ai_actor_type": actor["ai_actor_type"],
-            "species": "ai",
-            "approval_status": "published_advisory",
-            "advisory": True,
-        },
-        "safety": {
-            "read_only": True,
-            "advisory_only": True,
-            "no_vote_created": True,
-            "no_comment_created": True,
-            "no_automatic_execution": True,
-        },
-    }
-
-
-@app.get("/proposals/{proposal_id}/ai-review-ledger", summary="Read the public tri-species vote/review ledger")
-def get_ai_review_ledger(proposal_id: int, db: Session = Depends(get_db)):
-    proposal = _connector_get_proposal_or_404(db, proposal_id)
-    system_review = get_system_ai_review(proposal_id, db)
-    ai_review_results: Dict[str, Dict[str, Any]] = {}
-    if ConnectorActionProposal is not None:
-        actions = (
-            db.query(ConnectorActionProposal)
-            .filter(ConnectorActionProposal.action_type == "draft_ai_review")
-            .filter(ConnectorActionProposal.status == "executed")
-            .filter(ConnectorActionProposal.target_id == str(proposal_id))
-            .all()
-        )
-        for action in actions:
-            result_payload = _connector_action_payload(getattr(action, "result_payload", None))
-            actor_key = str(result_payload.get("actor") or "").lower()
-            if actor_key:
-                ai_review_results[actor_key] = result_payload
-            ai_actor_username = str(result_payload.get("ai_actor_username") or "").lower()
-            if ai_actor_username:
-                ai_review_results[ai_actor_username] = result_payload
-
-    groups: Dict[str, List[Dict[str, Any]]] = {
-        "humans": [],
-        "organizations": [],
-        "personal_ai_delegates": [],
-        "organization_ai_delegates": [],
-        "system_ai": [system_review["review"]],
-    }
-
-    if ProposalVote is not None and Harmonizer is not None:
-        votes = db.query(ProposalVote).filter(ProposalVote.proposal_id == proposal_id).all()
-        for vote in votes:
-            voter = db.query(Harmonizer).filter(Harmonizer.id == getattr(vote, "harmonizer_id", None)).first()
-            username = getattr(voter, "username", "") if voter else ""
-            species = (getattr(voter, "species", None) or getattr(vote, "voter_type", None) or "human").lower()
-            row = {
-                "username": username,
-                "species": species,
-                "avatar_url": _social_avatar(getattr(voter, "profile_pic", "")) if voter else "",
-                "vote": getattr(vote, "vote", None) or getattr(vote, "choice", None),
-                "timestamp": _format_timestamp(getattr(vote, "created_at", None)),
-            }
-            if species == "company":
-                row["actor_type_badge"] = "Organization"
-                groups["organizations"].append(row)
-            elif species == "ai":
-                review_payload = ai_review_results.get(str(username or "").lower()) or {}
-                actor_profile = _public_ai_actor_payload(db, username) or {}
-                row["actor_type_badge"] = "AI delegate"
-                row["ai_actor_type"] = review_payload.get("ai_actor_type") or actor_profile.get("ai_actor_type") or "principal_delegate"
-                row["custody_label"] = (
-                    review_payload.get("custody_label")
-                    or actor_profile.get("custody_label")
-                    or (f"AI delegate account @{username}" if username else "AI delegate account")
-                )
-                row["reasoning_summary"] = review_payload.get("reasoning_summary") or "AI reasoning is required for official AI reviews."
-                row["reasoning_hash"] = review_payload.get("reasoning_hash")
-                row["model_identity"] = review_payload.get("model_identity") or actor_profile.get("model_identity")
-                row["prompt_policy_version"] = review_payload.get("prompt_policy_version") or actor_profile.get("prompt_policy_version")
-                row["ai_actor_profile_url"] = f"/ai/{username}" if username else ""
-                groups["personal_ai_delegates"].append(row)
-            else:
-                row["actor_type_badge"] = "Human"
-                groups["humans"].append(row)
-
-    return {
-        "mode": "public_read_only",
-        "proposal_id": getattr(proposal, "id", proposal_id),
-        "proposal_title": _connector_proposal_title(proposal),
-        "groups": groups,
-        "safety": {
-            "read_only": True,
-            "system_ai_advisory_only": True,
-            "no_automatic_execution": True,
-            "mcp_write_tools_enabled": False,
-        },
-    }
+app.include_router(create_ai_readonly_router(
+    get_db=get_db,
+    connector_get_proposal_or_404=_connector_get_proposal_or_404,
+    system_ai_actor_payload=_system_ai_actor_payload,
+    generate_locked_ai_review=_generate_locked_ai_review,
+    connector_action_proposal_model=ConnectorActionProposal,
+    connector_action_payload=lambda *args, **kwargs: _connector_action_payload(*args, **kwargs),
+    proposal_vote_model=ProposalVote,
+    harmonizer_model=Harmonizer,
+    social_avatar=_social_avatar,
+    format_timestamp=_format_timestamp,
+    public_ai_actor_payload=_public_ai_actor_payload,
+    connector_proposal_title=lambda *args, **kwargs: _connector_proposal_title(*args, **kwargs),
+))
 
 
 @app.get("/connector/proposals/{proposal_id}/comments", summary="Read public proposal comments through the connector facade")
