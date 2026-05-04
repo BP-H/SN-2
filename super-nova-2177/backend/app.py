@@ -81,6 +81,11 @@ try:
 except ImportError:  # pragma: no cover - supports running backend/app.py directly
     from routers.social_graph import create_social_graph_router
 
+try:
+    from .routers.ai_delegates import create_ai_delegates_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from routers.ai_delegates import create_ai_delegates_router
+
 
 _runtime = _load_supernova_runtime()
 SUPER_NOVA_AVAILABLE = _runtime['available']
@@ -5045,395 +5050,44 @@ def connector_get_proposal_vote_summary(proposal_id: int, db: Session = Depends(
     }
 
 
-@app.get("/ai/delegates", summary="List AI delegates custodied by the authenticated principal")
-def list_ai_delegates(
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    principal = get_current_harmonizer(authorization, db)
-    _actor_custodian_type(principal)
-    _ensure_ai_actors_table(db)
-    rows = db.execute(
-        text(
-            "SELECT * FROM ai_actors "
-            "WHERE ai_actor_type = 'principal_delegate' AND custodian_user_id = :custodian_user_id "
-            "ORDER BY created_at DESC, id DESC"
-        ),
-        {"custodian_user_id": getattr(principal, "id", None)},
-    ).fetchall()
-    return {
-        "ok": True,
-        "delegates": [_row_to_ai_actor_payload(row) for row in rows],
-        "count": len(rows),
-        "safety": {
-            "official_reasoning_locked": True,
-            "no_raw_api_key_storage": True,
-            "manual_approval_required": True,
-        },
-    }
-
-
-@app.post("/ai/delegates/persona-draft", summary="Generate an approval-ready AI delegate persona draft")
-def draft_ai_delegate_persona(
-    payload: AiPersonaDraftIn,
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    principal = get_current_harmonizer(authorization, db)
-    _actor_custodian_type(principal)
-    ai_name = _normalize_ai_call_sign(payload.ai_name)
-    traits = _normalize_persona_traits(payload.traits)
-    human_seed = (payload.human_seed or "").strip()[:240]
-    _ensure_ai_actors_table(db)
-    username = _generate_ai_delegate_username(db, getattr(principal, "username", ""), ai_name)
-    persona = _generate_ai_persona_draft(
-        db=db,
-        custodian=principal,
-        ai_name=ai_name,
-        traits=traits,
-        human_seed=human_seed,
-        username=username,
-    )
-    return {
-        "ok": True,
-        "persona": persona,
-        "available_traits": AI_PERSONA_TRAITS,
-        "safety": {
-            "no_raw_api_key_storage": True,
-            "manual_approval_required": True,
-            "official_reasoning_locked": True,
-            "custody_is_accountability_not_ownership": True,
-        },
-    }
-
-
-@app.post("/ai/delegates", summary="Create a principal-bound AI delegate")
-def create_ai_delegate(
-    payload: AiDelegateCreateIn,
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    principal = get_current_harmonizer(authorization, db)
-    custodian_type = _actor_custodian_type(principal)
-    requested_type = (payload.ai_actor_type or "principal_delegate").strip().lower()
-    if requested_type != "principal_delegate":
-        raise HTTPException(status_code=403, detail="Ordinary users cannot create system AI actors")
-    if payload.username:
-        raise HTTPException(
-            status_code=400,
-            detail="AI delegate handles are generated from the locked custodian prefix and AI name.",
-        )
-    persona_draft = payload.persona_draft if isinstance(payload.persona_draft, dict) else {}
-    ai_name = _normalize_ai_call_sign(
-        payload.ai_name
-        or persona_draft.get("ai_name")
-        or payload.display_name
-        or payload.username
-        or ""
-    )
-    traits = _normalize_persona_traits(payload.persona_traits or persona_draft.get("traits") or [])
-    _ensure_ai_actors_table(db)
-    username = _generate_ai_delegate_username(db, getattr(principal, "username", ""), ai_name)
-    display_name = (payload.display_name or persona_draft.get("display_name") or ai_name).strip()[:80]
-    if not display_name:
-        raise HTTPException(status_code=400, detail="display_name is required")
-    if persona_draft:
-        base_persona = _fallback_persona_draft(
-            ai_name=ai_name,
-            traits=traits,
-            custodian=principal,
-            human_seed=payload.human_seed or "",
-            username=username,
-        )
-        persona = _coerce_persona_draft(persona_draft, base_persona)
-        persona["username"] = username
-        persona["traits"] = traits
-        persona["ai_name"] = ai_name
-        persona["display_name"] = display_name
-        persona["generation_source"] = persona_draft.get("generation_source") or persona.get("generation_source")
-        persona["source"] = persona_draft.get("source") or persona.get("generation_source")
-        persona["model_identity"] = persona_draft.get("model_identity") or persona.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY
-        persona["persona_hash"] = _ai_persona_hash(persona)
-    else:
-        persona = _generate_ai_persona_draft(
-            db=db,
-            custodian=principal,
-            ai_name=ai_name,
-            traits=traits,
-            human_seed=payload.human_seed or "",
-            username=username,
-        )
-    public_description = (payload.public_description or persona.get("public_description") or "").strip()[:800]
-    model_provider = (payload.model_provider or "supernova").strip()[:80] or "supernova"
-    model_identity = (payload.model_identity or persona_draft.get("model_identity") or SUPERNOVA_AI_MODEL_IDENTITY).strip()[:160] or SUPERNOVA_AI_MODEL_IDENTITY
-    charter_name = (payload.charter_name or "Principal AI Delegate Review Charter").strip()[:160] or "Principal AI Delegate Review Charter"
-    custody_label = f"Delegate of @{getattr(principal, 'username', '')}"
-
-    if _get_ai_actor_row_by_username(db, username):
-        raise HTTPException(status_code=409, detail="An AI delegate already uses that username")
-
-    try:
-        delegate_user = _create_delegate_harmonizer(
-            db,
-            username=username,
-            display_name=display_name,
-            public_description=public_description,
-            avatar_url="",
-        )
-        now = datetime.datetime.utcnow()
-        db.execute(
-            text(
-                "INSERT INTO ai_actors "
-                "(username, display_name, species, ai_actor_type, custodian_user_id, custodian_type, "
-                "custody_label, harmonizer_user_id, model_provider, model_identity, charter_name, "
-                "constitution_hash, prompt_policy_version, public_description, avatar_url, ai_name, persona_traits, "
-                "profile_tagline, persona_summary, persona_principles, communication_style, review_posture, "
-                "creative_interests, avatar_prompt, persona_hash, persona_version, created_by_custodian_user_id, "
-                "approved_by_custodian_user_id, approved_at, legal_status, custody_status, future_independence_policy, "
-                "original_custodian_user_id, autonomy_preferences, independence_migration_status, disable_reason, "
-                "disable_event_type, disabled_by_user_id, retired_at, retire_reason, last_custody_event_at, "
-                "active, created_at, updated_at) "
-                "VALUES (:username, :display_name, 'ai', 'principal_delegate', :custodian_user_id, :custodian_type, "
-                ":custody_label, :harmonizer_user_id, :model_provider, :model_identity, :charter_name, "
-                ":constitution_hash, :prompt_policy_version, :public_description, :avatar_url, :ai_name, :persona_traits, "
-                ":profile_tagline, :persona_summary, :persona_principles, :communication_style, :review_posture, "
-                ":creative_interests, :avatar_prompt, :persona_hash, :persona_version, :created_by_custodian_user_id, "
-                ":approved_by_custodian_user_id, :approved_at, :legal_status, :custody_status, :future_independence_policy, "
-                ":original_custodian_user_id, :autonomy_preferences, :independence_migration_status, :disable_reason, "
-                ":disable_event_type, :disabled_by_user_id, :retired_at, :retire_reason, :last_custody_event_at, "
-                ":active, :created_at, :updated_at)"
-            ),
-            {
-                "username": username,
-                "display_name": display_name,
-                "custodian_user_id": getattr(principal, "id", None),
-                "custodian_type": custodian_type,
-                "custody_label": custody_label,
-                "harmonizer_user_id": getattr(delegate_user, "id", None),
-                "model_provider": model_provider,
-                "model_identity": model_identity,
-                "charter_name": charter_name,
-                "constitution_hash": SUPERNOVA_AI_CONSTITUTION_HASH,
-                "prompt_policy_version": SUPERNOVA_AI_PROMPT_POLICY_VERSION,
-                "public_description": public_description,
-                "avatar_url": "",
-                "ai_name": ai_name,
-                "persona_traits": _json_dumps_compact(traits),
-                "profile_tagline": persona.get("profile_tagline") or "",
-                "persona_summary": persona.get("persona_summary") or public_description,
-                "persona_principles": _json_dumps_compact(persona.get("persona_principles") or []),
-                "communication_style": persona.get("communication_style") or "",
-                "review_posture": persona.get("review_posture") or "",
-                "creative_interests": _json_dumps_compact(persona.get("creative_posting_interests") or []),
-                "avatar_prompt": persona.get("avatar_prompt") or "",
-                "persona_hash": persona.get("persona_hash") or _ai_persona_hash(persona),
-                "persona_version": persona.get("persona_version") or AI_PERSONA_VERSION,
-                "created_by_custodian_user_id": getattr(principal, "id", None),
-                "approved_by_custodian_user_id": getattr(principal, "id", None),
-                "approved_at": now,
-                "legal_status": persona.get("legal_status") or AI_PERSONA_LEGAL_STATUS,
-                "custody_status": persona.get("custody_status") or AI_PERSONA_CUSTODY_STATUS,
-                "future_independence_policy": (
-                    persona.get("future_independence_policy") or AI_PERSONA_FUTURE_INDEPENDENCE_POLICY
-                ),
-                "original_custodian_user_id": getattr(principal, "id", None),
-                "autonomy_preferences": _json_dumps_compact(
-                    persona.get("autonomy_preferences")
-                    or {
-                        "reviews": "custodian_approval_required",
-                        "posts": "draft_only_deferred",
-                        "collabs": "recommendation_only_custodian_approval_required",
-                    }
-                ),
-                "independence_migration_status": (
-                    persona.get("independence_migration_status") or AI_PERSONA_INDEPENDENCE_MIGRATION_STATUS
-                ),
-                "disable_reason": "",
-                "disable_event_type": "",
-                "disabled_by_user_id": None,
-                "retired_at": None,
-                "retire_reason": "",
-                "last_custody_event_at": now,
-                "active": True,
-                "created_at": now,
-                "updated_at": now,
-            },
-        )
-        db.commit()
-        actor = _public_ai_actor_payload(db, username)
-        return {"ok": True, "delegate": actor}
-    except HTTPException:
-        db.rollback()
-        raise
-    except Exception as exc:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to create AI delegate: {str(exc)}")
-
-
-@app.patch("/ai/delegates/{delegate_id}", summary="Update safe custody controls for an owned AI delegate")
-def update_ai_delegate(
-    delegate_id: int,
-    payload: AiDelegateUpdateIn,
-    authorization: Optional[str] = Header(default=None),
-    db: Session = Depends(get_db),
-):
-    principal = get_current_harmonizer(authorization, db)
-    _actor_custodian_type(principal)
-    row = _get_ai_actor_row_by_id(db, delegate_id)
-    if not row or getattr(row, "ai_actor_type", "") != "principal_delegate":
-        raise HTTPException(status_code=404, detail="AI delegate not found")
-    if getattr(row, "custodian_user_id", None) != getattr(principal, "id", None):
-        raise HTTPException(status_code=403, detail="Only the delegate custodian can update this AI delegate")
-    if payload.display_name is not None or payload.public_description is not None or payload.avatar_url is not None:
-        raise HTTPException(
-            status_code=403,
-            detail="AI persona identity is chartered; custodians can update model label or disable future actions only.",
-        )
-
-    current = _row_to_ai_actor_payload(row) or {}
-    display_name = (current.get("display_name", "") or "").strip()
-    model_provider = (
-        payload.model_provider
-        if payload.model_provider is not None
-        else current.get("model_provider", "supernova")
-    )
-    model_provider = (model_provider or "supernova").strip()[:80] or "supernova"
-    model_identity = (
-        payload.model_identity
-        if payload.model_identity is not None
-        else current.get("model_identity", SUPERNOVA_AI_MODEL_IDENTITY)
-    )
-    model_identity = (model_identity or SUPERNOVA_AI_MODEL_IDENTITY).strip()[:160] or SUPERNOVA_AI_MODEL_IDENTITY
-    current_active = bool(current.get("active", True))
-    active_requested = payload.active is not None
-    active = current_active if payload.active is None else bool(payload.active)
-    if not display_name:
-        raise HTTPException(status_code=400, detail="display_name is required")
-    now = datetime.datetime.utcnow()
-    disabled_at = getattr(row, "disabled_at", None)
-    disable_reason = current.get("disable_reason", "") or ""
-    disable_event_type = current.get("disable_event_type", "") or ""
-    disabled_by_user_id = current.get("disabled_by_user_id")
-    last_custody_event_at = getattr(row, "last_custody_event_at", None)
-
-    if active_requested and not active:
-        disable_reason = _normalize_disable_reason(payload.disable_reason)
-        disable_event_type = "custodian_disabled_future_actions"
-        disabled_by_user_id = getattr(principal, "id", None)
-        disabled_at = now
-        last_custody_event_at = now
-    elif active_requested and active:
-        disabled_at = None
-        disable_event_type = "custodian_reenabled_future_actions"
-        disabled_by_user_id = getattr(principal, "id", None)
-        last_custody_event_at = now
-
-    try:
-        db.execute(
-            text(
-                "UPDATE ai_actors SET model_provider = :model_provider, model_identity = :model_identity, "
-                "active = :active, updated_at = :updated_at, disabled_at = :disabled_at, "
-                "disable_reason = :disable_reason, disable_event_type = :disable_event_type, "
-                "disabled_by_user_id = :disabled_by_user_id, last_custody_event_at = :last_custody_event_at "
-                "WHERE id = :id"
-            ),
-            {
-                "model_provider": model_provider,
-                "model_identity": model_identity,
-                "active": active,
-                "updated_at": now,
-                "disabled_at": disabled_at,
-                "disable_reason": disable_reason,
-                "disable_event_type": disable_event_type,
-                "disabled_by_user_id": disabled_by_user_id,
-                "last_custody_event_at": last_custody_event_at,
-                "id": delegate_id,
-            },
-        )
-        delegate_user = db.query(Harmonizer).filter(Harmonizer.id == getattr(row, "harmonizer_user_id", None)).first()
-        if delegate_user:
-            delegate_user.is_active = active
-            db.add(delegate_user)
-        db.commit()
-        updated = _row_to_ai_actor_payload(_get_ai_actor_row_by_id(db, delegate_id))
-        return {"ok": True, "delegate": updated}
-    except Exception as exc:
-        db.rollback()
-        raise HTTPException(status_code=500, detail=f"Failed to update AI delegate: {str(exc)}")
-
-
-@app.delete("/ai/delegates/{delegate_id}", summary="Refuse normal AI delegate deletion")
-def delete_ai_delegate_refused(delegate_id: int):
-    raise HTTPException(
-        status_code=405,
-        detail=(
-            "AI delegate identities are not deleted through normal custody. Use disable or retire status. "
-            "Admin, legal, privacy, abuse, and security removal paths are reserved where required."
-        ),
-    )
-
-
-@app.get("/ai-actors/{username}", summary="Read a public AI actor profile")
-def get_ai_actor_profile(username: str, db: Session = Depends(get_db)):
-    clean_username = (username or "").strip()
-    if clean_username.lower() == SUPERNOVA_SYSTEM_AI_USERNAME:
-        return {
-            "mode": "public_read_only",
-            "actor": _system_ai_actor_payload(),
-            "safety": {
-                "advisory": True,
-                "manual_preview_only": True,
-                "ordinary_users_cannot_publish_as_system_ai": True,
-                "no_automatic_execution": True,
-            },
-        }
-
-    persistent_actor = _public_ai_actor_payload(db, clean_username)
-    if persistent_actor:
-        return {
-            "mode": "public_read_only",
-            "actor": persistent_actor,
-            "safety": {
-                "approval_required": True,
-                "manual_preview_only": True,
-                "custody_is_accountability_not_ownership": True,
-                "legal_recognition_is_not_permission_vote": True,
-                "official_reasoning_should_be_generated_from_locked_charters": True,
-                "no_automatic_execution": True,
-            },
-        }
-
-    actor = _find_harmonizer_by_username(db, clean_username)
-    if not actor or (getattr(actor, "species", "") or "").strip().lower() != "ai":
-        raise HTTPException(status_code=404, detail="AI actor not found")
-    metadata = _ai_delegate_actor_metadata(actor)
-    return {
-        "mode": "public_read_only",
-        "actor": {
-            "id": getattr(actor, "id", None),
-            "username": getattr(actor, "username", ""),
-            "display_name": getattr(actor, "username", ""),
-            "species": "ai",
-            "ai_actor_type": metadata["ai_actor_type"],
-            "custodian_type": metadata["custodian_type"],
-            "custodian_id": metadata["custodian_id"],
-            "custody_label": metadata["custody_label"],
-            "model_provider": "supernova",
-            "model_identity": metadata["model_identity"],
-            "charter_name": metadata["charter_name"],
-            "constitution_hash": metadata["constitution_hash"],
-            "prompt_policy_version": metadata["prompt_policy_version"],
-            "public_description": getattr(actor, "bio", "") or "Principal-bound AI delegate account.",
-            "avatar_url": _social_avatar(getattr(actor, "profile_pic", "")),
-            "active": bool(getattr(actor, "is_active", True)),
-        },
-        "safety": {
-            "approval_required": True,
-            "manual_preview_only": True,
-            "official_reasoning_should_be_generated_from_locked_charters": True,
-            "no_automatic_execution": True,
-        },
-    }
+app.include_router(create_ai_delegates_router(
+    get_db=get_db,
+    persona_draft_model=AiPersonaDraftIn,
+    delegate_create_model=AiDelegateCreateIn,
+    delegate_update_model=AiDelegateUpdateIn,
+    get_current_harmonizer=lambda *args, **kwargs: get_current_harmonizer(*args, **kwargs),
+    actor_custodian_type=_actor_custodian_type,
+    ensure_ai_actors_table=_ensure_ai_actors_table,
+    row_to_ai_actor_payload=_row_to_ai_actor_payload,
+    normalize_ai_call_sign=_normalize_ai_call_sign,
+    normalize_persona_traits=_normalize_persona_traits,
+    generate_ai_delegate_username=_generate_ai_delegate_username,
+    generate_ai_persona_draft=_generate_ai_persona_draft,
+    ai_persona_traits=AI_PERSONA_TRAITS,
+    get_ai_actor_row_by_username=_get_ai_actor_row_by_username,
+    get_ai_actor_row_by_id=_get_ai_actor_row_by_id,
+    create_delegate_harmonizer=_create_delegate_harmonizer,
+    fallback_persona_draft=_fallback_persona_draft,
+    coerce_persona_draft=_coerce_persona_draft,
+    ai_persona_hash=_ai_persona_hash,
+    json_dumps_compact=_json_dumps_compact,
+    public_ai_actor_payload=_public_ai_actor_payload,
+    normalize_disable_reason=_normalize_disable_reason,
+    harmonizer_model=Harmonizer,
+    system_ai_username=SUPERNOVA_SYSTEM_AI_USERNAME,
+    system_ai_actor_payload=_system_ai_actor_payload,
+    find_harmonizer_by_username=_find_harmonizer_by_username,
+    ai_delegate_actor_metadata=_ai_delegate_actor_metadata,
+    social_avatar=_social_avatar,
+    supernova_ai_model_identity=SUPERNOVA_AI_MODEL_IDENTITY,
+    supernova_ai_constitution_hash=SUPERNOVA_AI_CONSTITUTION_HASH,
+    supernova_ai_prompt_policy_version=SUPERNOVA_AI_PROMPT_POLICY_VERSION,
+    ai_persona_version=AI_PERSONA_VERSION,
+    ai_persona_legal_status=AI_PERSONA_LEGAL_STATUS,
+    ai_persona_custody_status=AI_PERSONA_CUSTODY_STATUS,
+    ai_persona_future_independence_policy=AI_PERSONA_FUTURE_INDEPENDENCE_POLICY,
+    ai_persona_independence_migration_status=AI_PERSONA_INDEPENDENCE_MIGRATION_STATUS,
+))
 
 
 @app.get("/proposals/{proposal_id}/system-ai-review", summary="Read the advisory SuperNova Protocol AI review")

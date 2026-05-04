@@ -100,6 +100,26 @@ semantics must stay unchanged during each extraction.
   paths, response shapes, fallback JSON store behavior, and rate-limit buckets are
   intended to be unchanged.
 
+### AI Delegates / AI Actor Profiles
+
+- Module: `backend/routers/ai_delegates.py`
+- Paths: `GET /ai/delegates`, `POST /ai/delegates/persona-draft`,
+  `POST /ai/delegates`, `PATCH /ai/delegates/{delegate_id}`,
+  `DELETE /ai/delegates/{delegate_id}`, `GET /ai-actors/{username}`
+- Dependencies kept in `app.py`: `get_db`, delegate request models, auth/custody
+  helpers, AI persona generation helpers, AI actor table helpers, public AI actor
+  serialization helpers, `Harmonizer`, and AI persona/status constants
+- Models/tables: `ai_actors`, `Harmonizer`
+- Auth: custodian bearer token required for delegate list/create/update; public read for
+  AI actor profiles; normal delete remains an explicit 405 refusal
+- Frontend surfaces: AI Genesis, AI delegate settings, public AI profiles, delegate
+  selectors that read owned delegates
+- Existing tests: `test_ai_delegate_management.py`,
+  `test_ai_delegate_routes_extraction.py`
+- Risk: medium, already extracted
+- Notes: AI action drafting, approval, cancellation, publishing, system AI proposal
+  review, and AI review ledger routes intentionally remain in `app.py`.
+
 ## Route Groups Still In `backend/app.py`
 
 ### Auth / Profile / Session
@@ -230,15 +250,9 @@ semantics must stay unchanged during each extraction.
   `votes_router.py` as-is until alias parity is added
 - Extraction notes: do not change vote math or species weighting in a route split PR.
 
-### AI Delegates / AI Actors / AI Actions
+### AI Actions / System AI Proposal Reviews
 
 - Paths:
-  - `GET /ai/delegates`
-  - `POST /ai/delegates/persona-draft`
-  - `POST /ai/delegates`
-  - `PATCH /ai/delegates/{delegate_id}`
-  - `DELETE /ai/delegates/{delegate_id}`
-  - `GET /ai-actors/{username}`
   - `GET /proposals/{proposal_id}/system-ai-review`
   - `GET /proposals/{proposal_id}/ai-review-ledger`
   - `GET /connector/actions`
@@ -255,16 +269,14 @@ semantics must stay unchanged during each extraction.
   - `POST /connector/actions/draft-comment`
   - `POST /connector/actions/draft-proposal`
   - `POST /connector/actions/draft-collab-request`
-- Current helper dependencies: AI generation helpers, `_ensure_ai_actors_table`,
-  `_ai_delegate_payload`, `_ai_delegate_actor_metadata`, `_ai_delegate_action_metadata`,
-  `_build_ai_actor_context`, `_ai_persona_hash`, `_generate_with_openai_or_fallback`,
-  `_connector_*` helpers, proposal/comment/vote creation helpers, public connector
-  serialization, custody/status guards
+- Current helper dependencies: AI generation helpers, `_ai_delegate_actor_metadata`,
+  `_ai_delegate_action_metadata`, `_build_ai_actor_context`, `_connector_*` helpers,
+  proposal/comment/vote creation helpers, public connector serialization,
+  custody/status guards
 - Models/tables: `ai_actors`, `connector_action_proposals`, `Proposal`, `Comment`,
   `ProposalVote`, `Harmonizer`, `ProposalCollab`
-- Auth requirements: custodian bearer token required for delegate creation/update and
-  draft/approval actions; public reads for AI profiles and ledgers; normal delete route
-  intentionally refuses
+- Auth requirements: custodian bearer token required for draft/approval actions; public
+  reads for system AI reviews and ledgers
 - Frontend surfaces: AI Genesis, AI profile, AI delegate modal, AI Actions inbox,
   proposal card Ask AI, comment AI, composer AI, AssistantOrb
 - Existing tests: `test_ai_delegate_management.py`,
@@ -276,10 +288,10 @@ semantics must stay unchanged during each extraction.
   immediate refresh contract; provider metadata secret non-exposure across all action
   payloads after route split
 - Risk: high
-- Recommended module: `routers/ai_actions.py` plus `routers/ai_delegates.py` after
-  additional tests
-- Extraction notes: split after messages/uploads/follows. Keep official AI-authored
-  content server-generated and approval-required.
+- Recommended module: `routers/ai_actions.py`
+- Extraction notes: keep official AI-authored content server-generated and
+  approval-required. Extract only after stronger snapshots around approved AI
+  posts/comments/votes and ledger refresh behavior.
 
 ### Public Federation / Export Routes
 
@@ -361,8 +373,8 @@ semantics must stay unchanged during each extraction.
 
 ## Recommended Next Extraction Order To Evaluate
 
-1. `routers/ai_delegates.py` / `routers/ai_actions.py` - important and test-covered,
-   but high risk because it publishes AI-authored content after approval.
+1. `routers/ai_actions.py` - important and test-covered, but high risk because it
+   publishes AI-authored content after approval.
 2. `routers/proposals.py`, `routers/comments.py`, and vote/system-vote routes last -
    central, intertwined, and easiest to regress.
 
