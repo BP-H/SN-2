@@ -76,6 +76,30 @@ semantics must stay unchanged during each extraction.
 - Notes: static `/uploads` mount intentionally remains in `app.py`; proposal create
   media handling and profile/avatar sync helpers remain outside this router.
 
+### Follows / Social Graph
+
+- Module: `backend/routers/social_graph.py`
+- Paths: `GET /social-users`, `GET /social-graph`, `GET /follows`,
+  `GET /follows/status`, `POST /follows`, `DELETE /follows`
+- Dependencies kept in `app.py`: `get_db`, `FollowIn`, `_collect_social_users`,
+  `_profile_metadata`, `_safe_user_key`, `_social_avatar`,
+  `_find_harmonizer_by_username`, `_read_follows_store`, `_write_follows_store`,
+  `_enforce_token_identity_match`, `_require_token_identity_match`,
+  `Proposal`, `Comment`, `ProposalVote`, `CRUD_MODELS_AVAILABLE`,
+  `_serialize_comment_record`, `_serialize_vote_record`
+- Models/tables: fallback `follows_store.json`; social graph read aggregation from
+  harmonizer/profile data, proposals, comments, proposal votes, and `direct_messages`
+- Auth: public social reads remain public; follow list/status retain existing optional
+  identity enforcement; follow/unfollow writes require a matching bearer token
+- Frontend surfaces: profile follow button/counts, social constellation/graph,
+  messaging user picker
+- Existing tests: `test_follow_auth_routes.py`, `test_auth_bound_write_routes.py`,
+  `test_social_graph_routes_extraction.py`
+- Risk: medium, already extracted
+- Notes: profile follow counts stay in `app.py` for profile payload compatibility; route
+  paths, response shapes, fallback JSON store behavior, and rate-limit buckets are
+  intended to be unchanged.
+
 ## Route Groups Still In `backend/app.py`
 
 ### Auth / Profile / Session
@@ -257,32 +281,6 @@ semantics must stay unchanged during each extraction.
 - Extraction notes: split after messages/uploads/follows. Keep official AI-authored
   content server-generated and approval-required.
 
-### Follows / Social Graph
-
-- Paths:
-  - `GET /social-users`
-  - `GET /social-graph`
-  - `GET /follows`
-  - `GET /follows/status`
-  - `POST /follows`
-  - `DELETE /follows`
-- Current helper dependencies: `_follow_counts`, `_read_follows_store`,
-  `_write_follows_store`, `_ensure_follows_table`, `_social_avatar`,
-  `_require_token_identity_match`, `_optional_token_identity_match`, username alias
-  helpers, social graph proposal/comment aggregation
-- Models/tables: `follows`, `Harmonizer`, `Proposal`, fallback `follows_store.json`
-- Auth requirements: public social read lists; bearer token required for follow/unfollow
-  writes
-- Frontend surfaces: profile follow button/counts, social constellation/graph,
-  messaging user picker
-- Existing tests: `test_follow_auth_routes.py`
-- Missing tests before extraction: social graph shape stability; fallback JSON store
-  parity; username alias behavior for follow status after rename
-- Risk: medium
-- Recommended module: `routers/social_graph.py`
-- Extraction notes: good after messages/uploads, but keep profile counts compatibility in
-  mind.
-
 ### Public Federation / Export Routes
 
 - Paths:
@@ -363,11 +361,9 @@ semantics must stay unchanged during each extraction.
 
 ## Recommended Next Extraction Order To Evaluate
 
-1. `routers/social_graph.py` - follows/social graph is moderately bounded, but profile
-   counts and fallback JSON parity need snapshots.
-2. `routers/ai_delegates.py` / `routers/ai_actions.py` - important and test-covered,
+1. `routers/ai_delegates.py` / `routers/ai_actions.py` - important and test-covered,
    but high risk because it publishes AI-authored content after approval.
-3. `routers/proposals.py`, `routers/comments.py`, and vote/system-vote routes last -
+2. `routers/proposals.py`, `routers/comments.py`, and vote/system-vote routes last -
    central, intertwined, and easiest to regress.
 
 ## Extraction Checklist For Future PRs
