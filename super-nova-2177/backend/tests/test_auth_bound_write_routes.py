@@ -290,7 +290,15 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
                 json={"sender": "stellar", "recipient": "bob", "body": "old token alias remains valid"},
                 headers=alice_headers,
             )
+            stale_sender_send = client.post(
+                "/messages",
+                json={"sender": "alice", "recipient": "bob", "body": "stale sender alias remains canonical"},
+                headers=alice_headers,
+            )
+            stale_thread = client.get("/messages?user=alice&peer=bob", headers=alice_headers)
             payload = sent.json()
+            stale_payload = stale_sender_send.json()
+            stale_thread_payload = stale_thread.json()
             result = {
                 "rename_status": rename.status_code,
                 "rename_username": rename.json().get("username"),
@@ -300,6 +308,11 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
                 "thread_status": thread.status_code,
                 "thread_count": len(thread.json().get("messages", [])),
                 "old_token_status": old_token_send.status_code,
+                "stale_sender_status": stale_sender_send.status_code,
+                "stale_sender": stale_payload.get("sender"),
+                "stale_thread_status": stale_thread.status_code,
+                "stale_thread_peer": stale_thread_payload.get("peer"),
+                "stale_thread_count": len(stale_thread_payload.get("messages", [])),
             }
             print("AUTH_BOUND_WRITE_ROUTES_RESULT=" + json.dumps(result, sort_keys=True))
             """
@@ -315,6 +328,11 @@ class AuthBoundWriteRouteTests(unittest.TestCase):
         self.assertEqual(result["thread_status"], 200)
         self.assertEqual(result["thread_count"], 3)
         self.assertEqual(result["old_token_status"], 200)
+        self.assertEqual(result["stale_sender_status"], 200)
+        self.assertEqual(result["stale_sender"], "stellar")
+        self.assertEqual(result["stale_thread_status"], 200)
+        self.assertEqual(result["stale_thread_peer"], "bob")
+        self.assertEqual(result["stale_thread_count"], 5)
 
     def test_profile_rename_alias_keeps_comment_delete_from_user_not_found(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(

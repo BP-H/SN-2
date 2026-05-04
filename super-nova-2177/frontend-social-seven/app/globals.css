@@ -2322,8 +2322,11 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
   position: fixed;
   inset: 0;
   z-index: 2147483647;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: max(1rem, env(safe-area-inset-top, 0px)) 1rem max(1rem, env(safe-area-inset-bottom, 0px));
   background: rgba(0, 0, 0, 0.72);
   backdrop-filter: blur(16px);
@@ -2333,7 +2336,7 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
 
 .ai-delegate-modal-card {
   width: min(100%, 25.5rem);
-  max-height: calc(100dvh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  max-height: min(42rem, calc(100dvh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)));
   overflow-y: auto;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 1.35rem;
@@ -2424,6 +2427,7 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
   display: flex;
   align-items: center;
   gap: 0.55rem;
+  min-width: 0;
 }
 
 .ai-delegate-generate-icon,
@@ -2481,12 +2485,14 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
 .ai-delegate-picker {
   position: relative;
   z-index: 30;
+  min-width: 0;
 }
 
 .ai-delegate-picker-button,
 .ai-delegate-picker-option {
   display: flex;
   width: 100%;
+  min-width: 0;
   align-items: center;
   gap: 0.75rem;
   border: 1px solid var(--horizontal-line);
@@ -2506,16 +2512,12 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
 }
 
 .ai-delegate-picker-menu {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 100%;
-  z-index: 90;
   margin-top: 0.45rem;
   display: grid;
   gap: 0.4rem;
-  max-height: min(16rem, 38dvh);
+  max-height: min(14rem, 32dvh);
   overflow-y: auto;
+  overscroll-behavior: contain;
   border: 1px solid var(--horizontal-line);
   border-radius: 1rem;
   background: rgba(8, 11, 18, 0.98);
@@ -2721,20 +2723,30 @@ html[data-theme="light"] .ai-delegate-picker-menu {
 
 @media (max-width: 540px) {
   .ai-delegate-modal-backdrop {
-    align-items: end;
-    padding: 0.75rem;
+    align-items: center;
+    padding: max(0.65rem, env(safe-area-inset-top, 0px)) 0.65rem max(0.65rem, env(safe-area-inset-bottom, 0px));
   }
 
   .ai-delegate-modal-card {
     width: 100%;
-    max-height: calc(100dvh - 1.5rem);
+    max-height: calc(100dvh - 1.3rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
     border-radius: 1.15rem;
     padding: 0.9rem;
   }
 
   .ai-delegate-picker-menu {
-    position: static;
-    max-height: 30dvh;
+    max-height: 28dvh;
+  }
+
+  .ai-delegate-picker-avatar {
+    height: 2.15rem;
+    width: 2.15rem;
+  }
+
+  .ai-delegate-picker-button,
+  .ai-delegate-picker-option {
+    gap: 0.55rem;
+    padding: 0.65rem;
   }
 }
 
