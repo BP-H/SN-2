@@ -61,6 +61,11 @@ try:
 except ImportError:  # pragma: no cover - supports running backend/app.py directly
     from commons_rate_limits import RATE_LIMIT_FRIENDLY_DETAIL, rate_limit_attempt
 
+try:
+    from .status_routes import build_supernova_runtime_payload, create_status_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from status_routes import build_supernova_runtime_payload, create_status_router
+
 
 _runtime = _load_supernova_runtime()
 SUPER_NOVA_AVAILABLE = _runtime['available']
@@ -4017,31 +4022,6 @@ def universe_info():
             "universe_id": "error"
         }
 
-# --- Health & Status ---
-def _supernova_runtime_payload(include_routes: bool = True) -> Dict[str, Any]:
-    payload = runtime_status(_runtime)
-    payload["integration"] = "connected" if SUPER_NOVA_AVAILABLE else "disconnected"
-    payload["mount_path"] = "/core" if payload.get("core_mounted") else None
-    payload["wrapper_routes_stable"] = True
-    if not include_routes:
-        routes = payload.get("core_routes") or []
-        payload["core_routes_sample"] = routes[:8]
-        payload.pop("core_routes", None)
-    return payload
-
-
-def _cors_diagnostics() -> Dict[str, Any]:
-    return {
-        "cors_mode": CORS_CONFIG["mode"],
-        "open_federation_mode": CORS_CONFIG["public_api_cors_open"],
-        "cors_credentials": False,
-        "allowed_origins_count": len(CORS_CONFIG["origins"]),
-        "cors_warning": CORS_CONFIG["warning"],
-        "cors_note": CORS_CONFIG["note"],
-        "identity_model": "open public reads with token-checked writes; no cross-origin cookies",
-    }
-
-
 def _normalize_preview_domain(domain: str) -> str:
     candidate = (domain or "").strip().lower()
     if not candidate:
@@ -4236,24 +4216,15 @@ def domain_verification_preview(domain: str = Query(...), username: str = Query(
     )
 
 
-@app.get("/health", summary="Check API health")
-def health(db: Session = Depends(get_db)):
-    try:
-        db.execute(text("SELECT 1"))
-        db_status = "connected"
-    except Exception:
-        db_status = "disconnected"
-    
-    supernova_runtime = _supernova_runtime_payload(include_routes=False)
-    return {
-        "ok": True,
-        "database": db_status,
-        "database_engine": DB_ENGINE_URL,
-        **_cors_diagnostics(),
-        "supernova_integration": supernova_runtime["integration"],
-        "supernova": supernova_runtime,
-        "timestamp": datetime.datetime.now().isoformat()
-    }
+app.include_router(create_status_router(
+    get_db=get_db,
+    db_engine_url=DB_ENGINE_URL,
+    cors_config=CORS_CONFIG,
+    runtime=_runtime,
+    supernova_available=SUPER_NOVA_AVAILABLE,
+    supernova_core_routes=SUPER_NOVA_CORE_ROUTES,
+    status_payload_builder=_build_status_payload,
+))
 
 @app.get("/universe", summary="Get simplified universe state")
 def get_universe_state():
@@ -4271,30 +4242,6 @@ def get_universe_state():
         ]
     }
    
-@app.get("/supernova-status", summary="Check SuperNova integration status")
-def supernova_status():
-    supernova_runtime = _supernova_runtime_payload(include_routes=True)
-    return {
-        "supernova_connected": SUPER_NOVA_AVAILABLE,
-        "supernova": supernova_runtime,
-        "database_engine": DB_ENGINE_URL,
-        **_cors_diagnostics(),
-        "features_available": {
-            "weighted_voting": SUPER_NOVA_AVAILABLE,
-            "karma_system": SUPER_NOVA_AVAILABLE,
-            "governance": SUPER_NOVA_AVAILABLE,
-            "core_routes": bool(SUPER_NOVA_CORE_ROUTES),
-            "search_filters": True,
-            "advanced_sorting": True
-        }
-    }
-
-
-@app.get("/status", tags=["System"])
-def get_status(db: Session = Depends(get_db)):
-    return _build_status_payload(db)
-
-
 @app.get("/network-analysis/", tags=["System"])
 def get_network_analysis(limit: int = Query(100, ge=1, le=500), db: Session = Depends(get_db)):
     return _build_network_payload(db, limit=limit)
@@ -4524,7 +4471,7 @@ def debug_supernova():
         raise HTTPException(status_code=404, detail="Not found")
     return {
         "supernova_available": SUPER_NOVA_AVAILABLE,
-        "supernova": _supernova_runtime_payload(include_routes=True),
+        "supernova": build_supernova_runtime_payload(_runtime, SUPER_NOVA_AVAILABLE, include_routes=True),
         "debug_mode": "development",
     }
 
