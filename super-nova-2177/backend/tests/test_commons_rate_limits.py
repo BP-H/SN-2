@@ -71,9 +71,10 @@ for path in (project_root, backend_dir):
         sys.path.insert(0, path_text)
 
 import backend.app as backend_app
+import commons_rate_limits
 
 client = TestClient(backend_app.app)
-backend_app._reset_rate_limit_state_for_tests()
+commons_rate_limits._reset_rate_limit_state_for_tests()
 
 def response_payload(response):
     try:
@@ -90,6 +91,17 @@ def response_payload(response):
 
 
 class CommonsRateLimitTests(unittest.TestCase):
+    def test_rate_limiter_lives_outside_backend_app(self):
+        app_text = (PROJECT_ROOT / "backend" / "app.py").read_text(encoding="utf-8")
+        module_text = (PROJECT_ROOT / "backend" / "commons_rate_limits.py").read_text(encoding="utf-8")
+
+        self.assertIn("from .commons_rate_limits import RATE_LIMIT_FRIENDLY_DETAIL, rate_limit_attempt", app_text)
+        self.assertIn("rate_limit_attempt(request, jwt_module=jwt, settings_getter=get_settings)", app_text)
+        self.assertNotIn("RATE_LIMIT_BUCKET_CONFIG", app_text)
+        self.assertNotIn("def _rate_limit_path_bucket", app_text)
+        self.assertIn("RATE_LIMIT_BUCKET_CONFIG", module_text)
+        self.assertIn("def _rate_limit_path_bucket", module_text)
+
     def test_auth_bucket_returns_friendly_429_and_status_is_exempt(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """
@@ -125,10 +137,10 @@ class CommonsRateLimitTests(unittest.TestCase):
             """
             ai_first = response_payload(client.post("/connector/actions/draft-ai-delegate-comment", json={}))
             ai_second = response_payload(client.post("/connector/actions/draft-ai-delegate-comment", json={}))
-            backend_app._reset_rate_limit_state_for_tests()
+            commons_rate_limits._reset_rate_limit_state_for_tests()
             upload_first = response_payload(client.post("/upload-image", json={}))
             upload_second = response_payload(client.post("/upload-image", json={}))
-            backend_app._reset_rate_limit_state_for_tests()
+            commons_rate_limits._reset_rate_limit_state_for_tests()
             write_first = response_payload(client.post("/comments", json={}))
             write_second = response_payload(client.post("/comments", json={}))
             print("RATE_LIMIT_RESULT=" + json.dumps({
@@ -172,7 +184,7 @@ class CommonsRateLimitTests(unittest.TestCase):
             alice_second = response_payload(client.post("/connector/actions/draft-ai-delegate-review", json={}, headers=headers_alice))
             bob_first = response_payload(client.post("/connector/actions/draft-ai-delegate-review", json={}, headers=headers_bob))
             os.environ["SUPERNOVA_RATE_LIMIT_ENABLED"] = "false"
-            backend_app._reset_rate_limit_state_for_tests()
+            commons_rate_limits._reset_rate_limit_state_for_tests()
             disabled_first = response_payload(client.post("/auth/login", json={}))
             disabled_second = response_payload(client.post("/auth/login", json={}))
             print("RATE_LIMIT_RESULT=" + json.dumps({
