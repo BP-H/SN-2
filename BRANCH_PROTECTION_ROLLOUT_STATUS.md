@@ -8,12 +8,28 @@ This file records the current enforcement posture so SuperNova does not jump fro
 | --- | --- | --- |
 | Manual local checks | Active | `python scripts/check_safe.py --local-only` is available. |
 | Public protocol smoke | Active | Daily/manual GitHub Action exists and live smoke passes when deployment is healthy. |
-| Local safe-check workflow | Active, manual-only | Not PR-blocking yet. |
-| FE7 lint/build | Manual | Run directly in `super-nova-2177/frontend-social-seven`. |
+| Local safe-check workflow | Active, manual-only | `.github/workflows/local-safe-pr-gates.yml` is available for PRs, but not required as a blocking branch rule yet. |
+| FE7 lint/build | Covered by workflow and manual runs | Workflow job `FE7 local deterministic checks`; manual fallback is `npm run lint` and `npm run build` in `super-nova-2177/frontend-social-seven`. |
 | Protected core diff check | Active locally | `scripts/check_safe.py` checks protected core zero diff. |
 | CODEOWNERS | Syntax validated through PR #8; auto-review inconclusive | PR #8 touched a CODEOWNERS-protected docs file and merged cleanly. Auto-review behavior remains inconclusive because the PR author was also the repo owner/CODEOWNER. |
 | Required checks | Not enabled | No workflow is required as a blocking branch rule yet. |
 | Strict branch protection | Not enabled | Wait until workflows are stable and CODEOWNERS behavior is confirmed. |
+
+## Candidate Required Checks
+
+When branch protection is enabled manually in GitHub settings, start with these
+required status checks from `.github/workflows/local-safe-pr-gates.yml`:
+
+- `Backend local deterministic checks`
+- `FE7 local deterministic checks`
+
+These jobs cover focused backend deterministic tests, FE7 lint/build, the local
+safe check, and protected core zero-diff. Keep live/network smoke checks advisory
+for now because they depend on deployment and public network availability.
+
+Rollback for an accidentally over-strict setup: remove the required checks in
+GitHub branch protection settings. Local emergency runtime rollback for alpha
+rate-limit problems remains `SUPERNOVA_RATE_LIMIT_ENABLED=false`.
 
 ## Next Validation Steps
 
@@ -21,7 +37,8 @@ Do these without changing runtime behavior:
 
 1. Use a future PR from a different contributor or bot to confirm CODEOWNERS auto-review requests.
 2. Confirm public protocol smoke and local safe-check workflows can still be run manually.
-3. Only then consider making any check required.
+3. Enable only the two candidate required checks above after they are stable
+   across several PRs.
 
 ## Do Not Enable Yet
 

@@ -13,6 +13,9 @@ date.
 Each checklist box is the pass marker. Mark it only when the expected behavior
 passes; leave it unchecked and record a follow-up issue/PR note when it fails.
 
+For a fast post-router-split smoke pass, use `ALPHA_SMOKE_NOW.md` first, then
+return here for the fuller alpha release signoff.
+
 ## Account / Session
 
 - [ ] **Create account**
