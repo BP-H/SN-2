@@ -2431,6 +2431,7 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
 }
 
 .ai-delegate-generate-icon,
+.ai-delegate-create-chip,
 .ai-delegate-mode-icon {
   display: inline-flex;
   align-items: center;
@@ -2458,7 +2459,18 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
   font-size: 0.9rem;
 }
 
+.ai-delegate-create-chip {
+  height: 2.2rem;
+  width: 2.2rem;
+  flex-shrink: 0;
+  color: var(--text-gray-light);
+  font-size: 1rem;
+  transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+
 .ai-delegate-generate-icon:not(:disabled):hover,
+.ai-delegate-create-chip:hover,
+.ai-delegate-create-chip.is-active,
 .ai-delegate-mode-icon:not(:disabled):hover,
 .ai-delegate-mode-icon.is-active {
   transform: translateY(-1px);
@@ -2630,6 +2642,30 @@ html[data-theme="light"] .ai-cursor-action-button[data-active="true"][data-tone=
   background: color-mix(in srgb, var(--pink) 10%, transparent);
 }
 
+.ai-delegate-metadata-details {
+  border-top: 1px solid color-mix(in srgb, var(--pink) 22%, transparent);
+  padding-top: 0.55rem;
+  color: var(--text-gray-light);
+  font-size: 0.66rem;
+  line-height: 1rem;
+}
+
+.ai-delegate-metadata-details > summary {
+  cursor: pointer;
+  width: max-content;
+  max-width: 100%;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.055);
+  padding: 0.22rem 0.52rem;
+  color: var(--text-gray-light);
+  font-weight: 900;
+}
+
+.ai-delegate-metadata-details > summary:hover {
+  color: var(--pink);
+  background: color-mix(in srgb, var(--pink) 10%, transparent);
+}
+
 .ai-delegate-action-row {
   border-top: 1px solid var(--horizontal-line);
   padding-top: 0.75rem;
@@ -2706,7 +2742,9 @@ html[data-theme="light"] .ai-delegate-select,
 html[data-theme="light"] .ai-delegate-chip,
 html[data-theme="light"] .ai-delegate-picker-button,
 html[data-theme="light"] .ai-delegate-picker-option,
-html[data-theme="light"] .ai-delegate-action-cancel {
+html[data-theme="light"] .ai-delegate-action-cancel,
+html[data-theme="light"] .ai-delegate-create-chip,
+html[data-theme="light"] .ai-delegate-metadata-details > summary {
   background: rgba(17, 24, 39, 0.045);
   border-color: rgba(17, 24, 39, 0.08);
 }

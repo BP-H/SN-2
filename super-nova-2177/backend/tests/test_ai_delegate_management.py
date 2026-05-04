@@ -979,6 +979,9 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("+ Create AI delegate", ai_picker)
         self.assertIn("ai-delegate-picker-create", ai_picker)
         self.assertIn("Create one in this popup", ai_picker)
+        self.assertIn("ai-delegate-create-chip", ai_modal)
+        self.assertIn("Create another AI delegate", ai_modal)
+        self.assertIn("MetadataDetails", ai_modal)
         self.assertIn('href="/settings/ai-delegates"', ai_modal)
         self.assertIn("supernova:post-created", home_feed)
         self.assertIn("setQueryData", home_feed)
@@ -1024,6 +1027,7 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("overscroll-behavior: contain", modal_backdrop_css)
         self.assertNotIn("position: absolute", picker_menu_css)
         self.assertIn("max-height: min(14rem, 32dvh)", picker_menu_css)
+        self.assertIn("ai-delegate-metadata-details", globals_css)
 
     def test_species_and_provider_ui_guardrails_are_static(self):
         frontend_root = PROJECT_ROOT / "frontend-social-seven"

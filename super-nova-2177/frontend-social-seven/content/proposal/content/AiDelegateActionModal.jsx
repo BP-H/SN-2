@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import {
+  IoAdd,
   IoBarChartOutline,
   IoCheckmark,
   IoClose,
@@ -35,6 +36,23 @@ function generationSourceLabel(value) {
     fallback_after_model_error: "Fallback draft - model request failed",
   };
   return labels[value] || value || "";
+}
+
+function MetadataDetails({ fields = [] }) {
+  const visibleFields = fields.filter((field) => field?.value);
+  if (!visibleFields.length) return null;
+  return (
+    <details className="ai-delegate-metadata-details mt-3">
+      <summary>Metadata</summary>
+      <div className="mt-2 grid gap-1 text-[0.66rem] leading-4 text-[var(--text-gray-light)] sm:grid-cols-2">
+        {visibleFields.map((field) => (
+          <p key={field.label}>
+            <span className="font-bold text-[var(--text-black)]">{field.label}:</span> {field.value}
+          </p>
+        ))}
+      </div>
+    </details>
+  );
 }
 
 function mediaIndicators(target = {}) {
@@ -762,16 +780,28 @@ export default function AiDelegateActionModal({
                   />
                 </div>
                 {!draftAction && (
-                  <button
-                    type="button"
-                    onClick={generateDraft}
-                    disabled={busy || !canGenerate}
-                    className="ai-delegate-generate-icon disabled:opacity-55"
-                    aria-label={busy ? "Generating AI draft" : modeConfig.button}
-                    title={busy ? "Generating" : modeConfig.button}
-                  >
-                    <Icon />
-                  </button>
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setCreateHandoffOpen((value) => !value)}
+                      className={`ai-delegate-create-chip ${createHandoffOpen ? "is-active" : ""}`}
+                      aria-label="Create another AI delegate"
+                      title="Create AI delegate"
+                    >
+                      <IoAdd />
+                      <span className="sr-only">Create AI delegate</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={generateDraft}
+                      disabled={busy || !canGenerate}
+                      className="ai-delegate-generate-icon disabled:opacity-55"
+                      aria-label={busy ? "Generating AI draft" : modeConfig.button}
+                      title={busy ? "Generating" : modeConfig.button}
+                    >
+                      <Icon />
+                    </button>
+                  </>
                 )}
               </div>
               {createHandoffOpen && createDelegateCard}
@@ -850,12 +880,14 @@ export default function AiDelegateActionModal({
                     {summary.media_caption_guidance && <p className="mt-1">{summary.media_caption_guidance}</p>}
                   </details>
                 )}
-                <div className="mt-3 grid gap-1 text-[0.66rem] leading-4 text-[var(--text-gray-light)] sm:grid-cols-2">
-                  <p><span className="font-bold text-[var(--text-black)]">Model:</span> {summary.model_identity || "server/fallback"}</p>
-                  <p><span className="font-bold text-[var(--text-black)]">Generation:</span> {generationSourceLabel(summary.generation_source)}</p>
-                  {summary.context_hash && <p><span className="font-bold text-[var(--text-black)]">Context:</span> {compactHash(summary.context_hash)}</p>}
-                  {summary.content_hash && <p><span className="font-bold text-[var(--text-black)]">Content:</span> {compactHash(summary.content_hash)}</p>}
-                </div>
+                <MetadataDetails
+                  fields={[
+                    { label: "Model", value: summary.model_identity || "server/fallback" },
+                    { label: "Generation", value: generationSourceLabel(summary.generation_source) },
+                    { label: "Context", value: compactHash(summary.context_hash) },
+                    { label: "Content", value: compactHash(summary.content_hash) },
+                  ]}
+                />
               </div>
             ) : draftAction ? (
               <div className="ai-delegate-preview-card mt-4 rounded-[1rem] p-4">
@@ -876,12 +908,14 @@ export default function AiDelegateActionModal({
                     {summary.generated_comment || summary.body || "AI-authored comment generated from the locked charter."}
                   </p>
                 )}
-                <div className="mt-3 grid gap-1 text-[0.66rem] leading-4 text-[var(--text-gray-light)] sm:grid-cols-2">
-                  <p><span className="font-bold text-[var(--text-black)]">Model:</span> {summary.model_identity || "server/fallback"}</p>
-                  <p><span className="font-bold text-[var(--text-black)]">Generation:</span> {generationSourceLabel(summary.generation_source)}</p>
-                  {summary.reasoning_hash && <p><span className="font-bold text-[var(--text-black)]">Reasoning:</span> {compactHash(summary.reasoning_hash)}</p>}
-                  {summary.content_hash && <p><span className="font-bold text-[var(--text-black)]">Content:</span> {compactHash(summary.content_hash)}</p>}
-                </div>
+                <MetadataDetails
+                  fields={[
+                    { label: "Model", value: summary.model_identity || "server/fallback" },
+                    { label: "Generation", value: generationSourceLabel(summary.generation_source) },
+                    { label: "Reasoning", value: compactHash(summary.reasoning_hash) },
+                    { label: "Content", value: compactHash(summary.content_hash) },
+                  ]}
+                />
               </div>
             ) : null}
 
