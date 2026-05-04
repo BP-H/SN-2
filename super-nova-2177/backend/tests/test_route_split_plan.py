@@ -14,6 +14,7 @@ class RouteSplitPlanTests(unittest.TestCase):
         self.assertTrue((BACKEND_DIR / "routers" / "uploads.py").exists())
         self.assertTrue((BACKEND_DIR / "routers" / "social_graph.py").exists())
         self.assertTrue((BACKEND_DIR / "routers" / "ai_delegates.py").exists())
+        self.assertTrue((BACKEND_DIR / "routers" / "ai_readonly.py").exists())
         self.assertTrue((BACKEND_DIR / "ROUTE_SPLIT_PLAN.md").exists())
 
     def test_route_split_plan_names_next_safe_candidates(self):
@@ -24,6 +25,7 @@ class RouteSplitPlanTests(unittest.TestCase):
         for expected in [
             "routers/social_graph.py",
             "routers/ai_delegates.py",
+            "routers/ai_readonly.py",
             "routers/ai_actions.py",
             "routers/proposals.py",
             "routers/comments.py",
@@ -35,7 +37,8 @@ class RouteSplitPlanTests(unittest.TestCase):
             "Proposals / Posts",
             "Comments / Comment Votes / Mentions",
             "AI Delegates / AI Actor Profiles",
-            "AI Actions / System AI Proposal Reviews",
+            "AI Read-Only System Reviews",
+            "AI Actions / Connector Drafts And Approvals",
             "Messages",
             "Follows / Social Graph",
             "Uploads / Media",

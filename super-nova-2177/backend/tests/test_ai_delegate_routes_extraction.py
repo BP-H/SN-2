@@ -56,7 +56,7 @@ class AiDelegateRoutesExtractionTests(unittest.TestCase):
         self.assertIn("DELETE", registered["/ai/delegates/{delegate_id}"])
         self.assertIn("GET", registered["/ai-actors/{username}"])
 
-    def test_ai_action_and_system_review_routes_remain_in_backend_app(self):
+    def test_ai_action_routes_remain_in_backend_app(self):
         app_text = (BACKEND_DIR / "app.py").read_text(encoding="utf-8")
         module_text = (BACKEND_DIR / "routers" / "ai_delegates.py").read_text(encoding="utf-8")
 
@@ -65,8 +65,6 @@ class AiDelegateRoutesExtractionTests(unittest.TestCase):
             '@app.post("/connector/actions/draft-ai-delegate-comment"',
             '@app.post("/connector/actions/{action_id}/approve-ai-review"',
             '@app.post("/connector/actions/{action_id}/approve-ai-comment"',
-            '@app.get("/proposals/{proposal_id}/system-ai-review"',
-            '@app.get("/proposals/{proposal_id}/ai-review-ledger"',
         ]:
             self.assertIn(route, app_text)
             self.assertNotIn(route.replace("@app.", "@router."), module_text)
