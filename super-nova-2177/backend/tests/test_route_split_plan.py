@@ -1,0 +1,49 @@
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[2]
+BACKEND_DIR = ROOT / "backend"
+
+
+class RouteSplitPlanTests(unittest.TestCase):
+    def test_route_split_guardrail_files_exist(self):
+        self.assertTrue((BACKEND_DIR / "commons_rate_limits.py").exists())
+        self.assertTrue((BACKEND_DIR / "status_routes.py").exists())
+        self.assertTrue((BACKEND_DIR / "ROUTE_SPLIT_PLAN.md").exists())
+
+    def test_route_split_plan_names_next_safe_candidates(self):
+        plan = (BACKEND_DIR / "ROUTE_SPLIT_PLAN.md").read_text(encoding="utf-8")
+
+        self.assertIn("Recommended Next Extraction Order To Evaluate", plan)
+        for expected in [
+            "routers/messages.py",
+            "routers/uploads.py",
+            "routers/social_graph.py",
+            "routers/ai_delegates.py",
+            "routers/ai_actions.py",
+            "routers/proposals.py",
+            "routers/comments.py",
+        ]:
+            self.assertIn(expected, plan)
+
+        for group in [
+            "Auth / Profile / Session",
+            "Proposals / Posts",
+            "Comments / Comment Votes / Mentions",
+            "AI Delegates / AI Actors / AI Actions",
+            "Messages",
+            "Follows / Social Graph",
+            "Uploads / Media",
+            "Public Federation / Export Routes",
+            "Core Gateway / Runtime Status",
+            "Misc / Debug / Dev-Only Routes",
+        ]:
+            self.assertIn(group, plan)
+
+        self.assertIn("Do not combine route movement with frontend", plan)
+        self.assertIn("protected core zero-diff", plan)
+
+
+if __name__ == "__main__":
+    unittest.main()
