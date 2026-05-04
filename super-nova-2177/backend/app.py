@@ -3035,6 +3035,22 @@ def _resolve_username_alias(db: Session, username: Optional[str]) -> Optional[Di
         return None
 
 
+def _canonical_username_from_alias(db: Session, username: Optional[str]) -> str:
+    clean = (username or "").strip()
+    alias = _resolve_username_alias(db, clean)
+    if not alias:
+        return clean
+    alias_user_id = alias.get("user_id")
+    if alias_user_id is not None and Harmonizer is not None:
+        try:
+            user = db.query(Harmonizer).filter(Harmonizer.id == int(alias_user_id)).first()
+            if user and getattr(user, "username", None):
+                return user.username
+        except (TypeError, ValueError):
+            pass
+    return (alias.get("new_username") or clean).strip() or clean
+
+
 def _create_wrapper_access_token(
     username: str,
     expires_delta: Optional[timedelta] = None,
@@ -7830,15 +7846,18 @@ def get_messages(
     current = _safe_user_key(user)
     if not current:
         raise HTTPException(status_code=400, detail="user is required")
-    _require_token_identity_match(authorization, db, user)
+    current_user = _require_token_identity_match(authorization, db, user)
+    canonical_user = (getattr(current_user, "username", None) or _canonical_username_from_alias(db, user) or user).strip()
+    current = _safe_user_key(canonical_user)
+    canonical_peer = _canonical_username_from_alias(db, peer) if peer else None
     has_pagination = limit is not None
     safe_limit = max(1, min(int(limit), 500)) if has_pagination else None
     safe_offset = max(0, int(offset or 0))
 
     try:
         _ensure_direct_messages_table(db)
-        if peer:
-            cid = _conversation_id(user, peer)
+        if canonical_peer:
+            cid = _conversation_id(canonical_user, canonical_peer)
             if has_pagination:
                 rows = db.execute(
                     text(
@@ -7856,7 +7875,7 @@ def get_messages(
                     ),
                     {"cid": cid},
                 ).fetchall()
-            return {"peer": peer, "messages": [_message_payload(row) for row in rows]}
+            return {"peer": canonical_peer, "messages": [_message_payload(row) for row in rows]}
 
         rows = db.execute(
             text(
@@ -7894,13 +7913,13 @@ def get_messages(
         db.rollback()
 
     messages = _read_messages_store()
-    if peer:
-        cid = _conversation_id(user, peer)
+    if canonical_peer:
+        cid = _conversation_id(canonical_user, canonical_peer)
         thread = [message for message in messages if message.get("conversation_id") == cid]
         sorted_thread = sorted(thread, key=lambda item: item.get("created_at", ""))
         if has_pagination:
             sorted_thread = sorted_thread[safe_offset:safe_offset + safe_limit]
-        return {"peer": peer, "messages": sorted_thread}
+        return {"peer": canonical_peer, "messages": sorted_thread}
 
     conversations: Dict[str, Dict[str, Any]] = {}
     for message in messages:
@@ -7932,18 +7951,20 @@ def send_message(
     authorization: Optional[str] = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    sender = payload.sender.strip()
+    requested_sender = payload.sender.strip()
     recipient = payload.recipient.strip()
     body = payload.body.strip()
-    if not sender:
+    if not requested_sender:
         raise HTTPException(status_code=400, detail="sender is required")
     if not recipient:
         raise HTTPException(status_code=400, detail="recipient is required")
+    current_user = _require_token_identity_match(authorization, db, requested_sender)
+    sender = (getattr(current_user, "username", None) or _canonical_username_from_alias(db, requested_sender) or requested_sender).strip()
+    recipient = _canonical_username_from_alias(db, recipient)
     if _safe_user_key(sender) == _safe_user_key(recipient):
         raise HTTPException(status_code=400, detail="Choose another user to message")
     if not body:
         raise HTTPException(status_code=400, detail="Write a message first")
-    _require_token_identity_match(authorization, db, sender)
 
     messages = _read_messages_store()
     message = {

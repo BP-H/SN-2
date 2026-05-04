@@ -1009,6 +1009,8 @@ class AiDelegateManagementTests(unittest.TestCase):
             frontend_root / "content" / "proposal" / "content" / "AiDelegatePicker.jsx"
         ).read_text(encoding="utf-8")
         globals_css = (frontend_root / "app" / "globals.css").read_text(encoding="utf-8")
+        picker_menu_css = globals_css.split(".ai-delegate-picker-menu {", 1)[1].split("}", 1)[0]
+        modal_backdrop_css = globals_css.split(".ai-delegate-modal-backdrop {", 1)[1].split("}", 1)[0]
 
         for text in [proposal_detail, likes, likes_info, ai_modal, ai_picker]:
             self.assertNotIn("rgba(255,47,130", text)
@@ -1018,6 +1020,10 @@ class AiDelegateManagementTests(unittest.TestCase):
         self.assertIn("var(--pink)", likes)
         self.assertIn("var(--pink)", likes_info)
         self.assertIn("color-mix(in srgb, var(--pink)", globals_css)
+        self.assertIn("overflow-y: auto", modal_backdrop_css)
+        self.assertIn("overscroll-behavior: contain", modal_backdrop_css)
+        self.assertNotIn("position: absolute", picker_menu_css)
+        self.assertIn("max-height: min(14rem, 32dvh)", picker_menu_css)
 
     def test_species_and_provider_ui_guardrails_are_static(self):
         frontend_root = PROJECT_ROOT / "frontend-social-seven"
