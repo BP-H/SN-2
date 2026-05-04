@@ -111,6 +111,11 @@ try:
 except ImportError:  # pragma: no cover - supports running backend/app.py directly
     from routers.comments import create_comments_router
 
+try:
+    from .routers.system_votes import create_system_votes_router
+except ImportError:  # pragma: no cover - supports running backend/app.py directly
+    from routers.system_votes import create_system_votes_router
+
 
 _runtime = _load_supernova_runtime()
 SUPER_NOVA_AVAILABLE = _runtime['available']
@@ -7001,7 +7006,6 @@ def list_proposals(
 #
 #
 # --- Dedicated yes/no system vote ---
-@app.get("/system-vote")
 def get_system_vote(username: Optional[str] = Query(None), db: Session = Depends(get_db)):
     try:
         _ensure_system_votes_table(db)
@@ -7016,7 +7020,6 @@ def get_system_vote(username: Optional[str] = Query(None), db: Session = Depends
         raise HTTPException(status_code=500, detail=f"Failed to load system vote: {str(exc)}")
 
 
-@app.get("/system-vote/config")
 def get_system_vote_config():
     return {
         "question": SYSTEM_VOTE_QUESTION,
@@ -7024,7 +7027,6 @@ def get_system_vote_config():
     }
 
 
-@app.post("/system-vote")
 def cast_system_vote(
     payload: SystemVoteIn,
     authorization: Optional[str] = Header(default=None),
@@ -7071,7 +7073,6 @@ def cast_system_vote(
         raise HTTPException(status_code=500, detail=f"Failed to cast system vote: {str(exc)}")
 
 
-@app.delete("/system-vote")
 def remove_system_vote(
     username: str = Query(...),
     authorization: Optional[str] = Header(default=None),
@@ -7098,6 +7099,14 @@ def remove_system_vote(
     except Exception as exc:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Failed to remove system vote: {str(exc)}")
+
+
+app.include_router(create_system_votes_router(
+    get_system_vote_endpoint=get_system_vote,
+    get_system_vote_config_endpoint=get_system_vote_config,
+    cast_system_vote_endpoint=cast_system_vote,
+    remove_system_vote_endpoint=remove_system_vote,
+))
 
 
 # --- Tally endpoints ---

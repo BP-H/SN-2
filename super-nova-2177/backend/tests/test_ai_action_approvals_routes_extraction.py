@@ -51,16 +51,13 @@ class AiActionApprovalRoutesExtractionTests(unittest.TestCase):
             self.assertIn("POST", registered[path])
 
     def test_system_vote_route_wrappers_remain_outside_ai_approval_router(self):
-        app_text = (BACKEND_DIR / "app.py").read_text(encoding="utf-8")
         module_text = (BACKEND_DIR / "routers" / "ai_action_approvals.py").read_text(encoding="utf-8")
 
         for route in [
-            '@app.get("/system-vote"',
-            '@app.post("/system-vote"',
-            '@app.delete("/system-vote"',
+            '"/system-vote"',
+            '"/system-vote/config"',
         ]:
-            self.assertIn(route, app_text)
-            self.assertNotIn(route.replace("@app.", "@router."), module_text)
+            self.assertNotIn(route, module_text)
 
         for moved_proposal_route in [
             '@router.get("/proposals"',

@@ -330,11 +330,15 @@ semantics must stay unchanged during each extraction.
 - Existing tests: `test_votes_router_auth.py`, `test_system_vote_auth_deadline.py`,
   `test_connector_vote_approval.py`, `test_public_federation_safety.py`
 - Missing tests before extraction: username alias behavior in `votes_router.py`; AI
-  delegate vote attribution after approve route moves; system vote delete admin posture
+  delegate vote attribution after any future vote helper move; system vote delete
+  admin posture
 - Risk: medium-high
 - Recommended module: `routers/system_votes.py` for system votes; leave
   `votes_router.py` as-is until alias parity is added
-- Extraction notes: do not change vote math or species weighting in a route split PR.
+- Extraction notes: system vote route registration is extracted to
+  `routers/system_votes.py`. Keep implementation helpers, vote math, species
+  attribution, and weighted vote internals in `app.py` until stronger alias and
+  AI-approved vote snapshots are in place.
 
 ### Public Federation / Export Routes
 
@@ -416,14 +420,15 @@ semantics must stay unchanged during each extraction.
 
 ## Recommended Next Extraction Order To Evaluate
 
-1. `routers/system_votes.py` and remaining vote routes - move late because vote
-   attribution, species metadata, and AI-approved review votes are easy to regress.
-2. Proposal helper extraction within `routers/proposals.py` - evaluate only after
+1. Proposal helper extraction within `routers/proposals.py` - evaluate only after
    broader media, username-alias, mention, collab, and AI-approved post refresh
    snapshots are in place.
-3. Comment helper extraction within `routers/comments.py` - evaluate only after
+2. Comment helper extraction within `routers/comments.py` - evaluate only after
    broader reply-to-reply AI comment, username-alias delete, mention, pagination,
    and refresh snapshots are in place.
+3. Imported `votes_router.py` parity and helper extraction - evaluate only after
+   username alias behavior, species attribution, and AI-approved review vote
+   compatibility have broader snapshots.
 
 ## Extraction Checklist For Future PRs
 

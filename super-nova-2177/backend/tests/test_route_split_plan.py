@@ -19,13 +19,14 @@ class RouteSplitPlanTests(unittest.TestCase):
         self.assertTrue((BACKEND_DIR / "routers" / "ai_action_approvals.py").exists())
         self.assertTrue((BACKEND_DIR / "routers" / "proposals.py").exists())
         self.assertTrue((BACKEND_DIR / "routers" / "comments.py").exists())
+        self.assertTrue((BACKEND_DIR / "routers" / "system_votes.py").exists())
         self.assertTrue((BACKEND_DIR / "ROUTE_SPLIT_PLAN.md").exists())
 
     def test_route_split_plan_names_next_safe_candidates(self):
         plan = (BACKEND_DIR / "ROUTE_SPLIT_PLAN.md").read_text(encoding="utf-8")
 
         self.assertIn("Recommended Next Extraction Order To Evaluate", plan)
-        self.assertIn("1. `routers/system_votes.py`", plan)
+        self.assertIn("1. Proposal helper extraction", plan)
         for expected in [
             "routers/social_graph.py",
             "routers/ai_delegates.py",
@@ -42,6 +43,7 @@ class RouteSplitPlanTests(unittest.TestCase):
             "Auth / Profile / Session",
             "Proposals / Posts",
             "Comments / Comment Votes / Mentions",
+            "Votes / System Votes",
             "AI Delegates / AI Actor Profiles",
             "AI Read-Only System Reviews",
             "AI Actions / Connector Drafts And Cancel",
