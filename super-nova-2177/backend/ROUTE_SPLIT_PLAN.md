@@ -118,7 +118,7 @@ semantics must stay unchanged during each extraction.
   `test_ai_delegate_routes_extraction.py`
 - Risk: medium, already extracted
 - Notes: AI action drafting, approval, cancellation, publishing, system AI proposal
-  review, and AI review ledger routes were intentionally left for later splits.
+  review, and AI review ledger routes were intentionally handled in later splits.
 
 ### AI Read-Only System Reviews
 
@@ -137,7 +137,7 @@ semantics must stay unchanged during each extraction.
   `test_ai_readonly_routes_extraction.py`
 - Risk: medium, already extracted
 - Notes: advisory/manual-preview-only semantics are preserved. No connector action draft,
-  approval, cancellation, or publication route moved in this split.
+  approval, cancellation, or publication route moved in the read-only split.
 
 ### AI Actions / Connector Drafts And Cancel
 
@@ -166,7 +166,35 @@ semantics must stay unchanged during each extraction.
   `test_ai_action_routes_extraction.py`
 - Risk: medium-high, already extracted
 - Notes: this router intentionally contains draft/list/cancel only. Cancel still
-  publishes nothing. Approval/publishing routes remain in `app.py`.
+  publishes nothing. Approval/publishing routes are extracted separately.
+
+### AI Action Approvals / Publishing
+
+- Module: `backend/routers/ai_action_approvals.py`
+- Paths: `POST /connector/actions/{action_id}/approve-vote`,
+  `POST /connector/actions/{action_id}/approve-ai-review`,
+  `POST /connector/actions/{action_id}/approve-ai-comment`,
+  `POST /connector/actions/{action_id}/approve-ai-post`
+- Dependencies kept in `app.py`: `get_db`, `_connector_execute_vote`,
+  `_connector_create_ai_review_comment`, `_connector_create_ai_post`,
+  `_connector_action_response`, `_connector_action_payload`,
+  `_connector_get_proposal_or_404`, `_serialize_comment_record`,
+  `_record_proposal_mentions`, public connector/media/profile serialization helpers,
+  custody/status guards, `Harmonizer`, and `Comment`
+- Models/tables: `ai_actors`, `connector_action_proposals`, `Proposal`, `Comment`,
+  `ProposalVote`, `Harmonizer`
+- Auth: bearer token required; the approving actor must match the action actor or
+  required custodian recorded in the draft payload
+- Frontend surfaces: AI delegate modal, AI Actions inbox, proposal card Ask AI,
+  comment AI, composer AI, AssistantOrb
+- Existing tests: `test_ai_delegate_management.py`,
+  `test_ai_actor_system_review.py`, `test_connector_action_draft_routes.py`,
+  `test_connector_ai_review_actions.py`, `test_connector_vote_approval.py`,
+  `test_connector_action_inbox_cancel.py`,
+  `test_ai_action_approvals_routes_extraction.py`
+- Risk: high, already extracted
+- Notes: this router publishes only after explicit approval. Draft/cancel behavior stays
+  in `routers/ai_actions.py`; proposal/comment/vote route wrappers remain in `app.py`.
 
 ## Route Groups Still In `backend/app.py`
 
@@ -298,36 +326,6 @@ semantics must stay unchanged during each extraction.
   `votes_router.py` as-is until alias parity is added
 - Extraction notes: do not change vote math or species weighting in a route split PR.
 
-### AI Action Approvals / Publishing
-
-- Paths:
-  - `POST /connector/actions/{action_id}/approve-vote`
-  - `POST /connector/actions/{action_id}/approve-ai-review`
-  - `POST /connector/actions/{action_id}/approve-ai-comment`
-  - `POST /connector/actions/{action_id}/approve-ai-post`
-- Current helper dependencies: `_connector_execute_vote`,
-  `_connector_create_ai_review_comment`, `_connector_create_ai_post`,
-  `_connector_action_response`, `_connector_action_payload`, proposal/comment/vote
-  publication helpers, public connector serialization, custody/status guards
-- Models/tables: `ai_actors`, `connector_action_proposals`, `Proposal`, `Comment`,
-  `ProposalVote`, `Harmonizer`
-- Auth requirements: bearer token required; the approving actor must match the
-  action actor or required custodian recorded in the draft payload
-- Frontend surfaces: AI Genesis, AI profile, AI delegate modal, AI Actions inbox,
-  proposal card Ask AI, comment AI, composer AI, AssistantOrb
-- Existing tests: `test_ai_delegate_management.py`,
-  `test_ai_actor_system_review.py`, `test_connector_action_draft_routes.py`,
-  `test_connector_ai_review_actions.py`, `test_connector_vote_approval.py`,
-  `test_connector_action_inbox_cancel.py`, `test_ai_action_routes_extraction.py`
-- Missing tests before extraction: approved AI post/comment/vote response-shape
-  snapshots after helper injection; AI review ledger refresh behavior after
-  approval; failed approval rollback snapshots; provider metadata secret
-  non-exposure across approval result payloads
-- Risk: high
-- Recommended module: `routers/ai_action_approvals.py`
-- Extraction notes: keep publication helpers in `app.py` until this split has
-  stronger snapshots. Approval/publishing is the next highest-risk AI split.
-
 ### Public Federation / Export Routes
 
 - Paths:
@@ -408,10 +406,12 @@ semantics must stay unchanged during each extraction.
 
 ## Recommended Next Extraction Order To Evaluate
 
-1. `routers/ai_action_approvals.py` - next highest-risk split because it publishes
-   approved AI-authored votes, comments, and posts.
-2. `routers/proposals.py`, `routers/comments.py`, and vote/system-vote routes last -
-   central, intertwined, and easiest to regress.
+1. `routers/proposals.py` - high-risk because it is central to post creation,
+   media payloads, collabs, mentions, and AI-approved post refresh behavior.
+2. `routers/comments.py` - high-risk because comment/reply/vote/mention behavior is
+   intertwined with proposal serialization and AI-approved comment refresh.
+3. `routers/system_votes.py` and remaining vote routes - move late because vote
+   attribution, species metadata, and AI-approved review votes are easy to regress.
 
 ## Extraction Checklist For Future PRs
 

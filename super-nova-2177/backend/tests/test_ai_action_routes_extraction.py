@@ -63,18 +63,18 @@ class AiActionRoutesExtractionTests(unittest.TestCase):
         for path in expected_paths - {"/connector/actions"}:
             self.assertIn("POST", registered[path])
 
-    def test_ai_action_approval_publishing_routes_remain_in_backend_app(self):
+    def test_ai_action_approval_publishing_routes_are_not_in_draft_router(self):
         app_text = (BACKEND_DIR / "app.py").read_text(encoding="utf-8")
         module_text = (BACKEND_DIR / "routers" / "ai_actions.py").read_text(encoding="utf-8")
 
         for route in [
-            '@app.post("/connector/actions/{action_id}/approve-vote"',
-            '@app.post("/connector/actions/{action_id}/approve-ai-review"',
-            '@app.post("/connector/actions/{action_id}/approve-ai-comment"',
-            '@app.post("/connector/actions/{action_id}/approve-ai-post"',
+            '@post("/connector/actions/{action_id}/approve-vote"',
+            '@post("/connector/actions/{action_id}/approve-ai-review"',
+            '@post("/connector/actions/{action_id}/approve-ai-comment"',
+            '@post("/connector/actions/{action_id}/approve-ai-post"',
         ]:
-            self.assertIn(route, app_text)
-            self.assertNotIn(route.replace("@app.", "@router."), module_text)
+            self.assertNotIn(route.replace("@", "@app."), app_text)
+            self.assertNotIn(route.replace("@", "@router."), module_text)
 
     def test_cancel_unknown_action_behavior_is_preserved(self):
         response = client.post("/connector/actions/987654321/cancel")
