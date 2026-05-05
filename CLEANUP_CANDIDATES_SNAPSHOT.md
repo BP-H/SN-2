@@ -26,6 +26,12 @@ This is a read-only inventory. It is not approval to delete anything from `maste
   until manual Vercel/project-root verification proves its Vite app and
   Vercel-style `/api/*` handlers are not deployed. The local repo audit is
   recorded in `FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`.
+- `super-nova-2177/frontend-next` runnable local launcher support was retired;
+  the source folder remains a deployment/auth/security-sensitive cleanup
+  candidate until manual Vercel/project-root verification proves its Next app,
+  Dockerfile path, Supabase auth dependencies, and `/api/ai` handler are not
+  deployed. The local repo audit is recorded in
+  `FRONTEND_NEXT_DEPLOYMENT_AUDIT.md`.
 
 ## Legacy Or Experimental Frontend Trees
 

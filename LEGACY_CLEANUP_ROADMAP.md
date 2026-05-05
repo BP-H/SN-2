@@ -77,7 +77,7 @@ Additional checks:
 | --- | --- | --- | --- |
 | `super-nova-2177/frontend-nova` | Deleted after launcher retirement and fresh reference checks found no active package, deployment, workflow, or runtime references. `start_frontend_nova.ps1` was removed with the source folder. | Completed first explicit legacy source-folder deletion. | Roll back with a single revert if the retired source is needed again. |
 | `super-nova-2177/frontend-professional` | Deleted after launcher retirement and fresh reference checks found no active package, deployment, workflow, runtime, or local launcher dependency. The unified launcher keeps only a retired/off-path handoff to Social Seven. | Completed explicit legacy source-folder deletion. | Roll back with a single revert if the retired source is needed again. |
-| `super-nova-2177/frontend-next` | Referenced by cleanup/security docs, `REPO_STATUS.md`, `run_local.py`, `start_supernova.ps1`, `start_frontend_next.ps1`, and `frontend-social-six` docs; has `Dockerfile` and package files. | Deployment/security-sensitive legacy Next app. | Do not delete until a legacy Next deployment assessment confirms it is unused. |
+| `super-nova-2177/frontend-next` | Source retained; runnable local launcher support retired after fresh checks. Dedicated deployment/auth/security audit found a standalone Next package, Dockerfile, Supabase auth dependencies, and an `app/api/ai` route. Local repo checks found no active workflow or external deploy config pointing to it, but Vercel/project-root settings were not manually verified. | Deployment/auth/security-sensitive legacy Next app; no active launcher. | Defer source deletion until manual Vercel/project-root verification confirms the folder, Dockerfile path, Supabase auth surface, and `/api/ai` handler are not deployed. |
 | `super-nova-2177/frontend-social-six` | Referenced by auth/security docs, cleanup docs, RSC/Next assessment, `REPO_STATUS.md`, launchers, `Dockerfile`, and social auth setup docs. | Auth-history-sensitive legacy social frontend. | Defer until a dedicated social-six retirement assessment. |
 | `super-nova-2177/frontend-vite-basic` | Referenced by cleanup docs, launcher scripts, `scripts/check_safe.py`, and protected `frontend-vite-basic/supernovacore.py` zero-diff checks. | Protected-core-sensitive. | Do not touch in early cleanup; any removal needs a separate protected-core-safe plan. |
 | `super-nova-2177/frontend-vite-3d` | Source retained; runnable local launcher support retired after fresh checks. Dedicated deployment/API audit found a standalone Vite package, `vercel.json`, and Vercel-style `api/` handlers. Local repo checks found no active workflow or external deploy config pointing to it, but Vercel project-root settings were not manually verified. | Deployment/API-sensitive; no active launcher. | Defer source deletion until manual Vercel/project-root verification confirms the folder and `/api/*` handlers are not deployed. |
@@ -117,11 +117,15 @@ config.
    retained. Dedicated deployment/API audit is documented in
    `FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`, and deletion remains deferred until
    manual Vercel/project-root verification proves it safe.
-8. Separate assessments for `frontend-next`, `frontend-social-six`, nested
-   `nova-web`, and nested `nova-api`.
-9. Do not schedule `frontend-vite-basic` removal until the protected duplicate
+8. `frontend-next` launcher retirement PR: completed; source folder is still
+   retained. Dedicated deployment/auth/security audit is documented in
+   `FRONTEND_NEXT_DEPLOYMENT_AUDIT.md`, and deletion remains deferred until
+   manual Vercel/project-root verification proves it safe.
+9. Separate assessments for `frontend-social-six`, nested `nova-web`, and
+   nested `nova-api`.
+10. Do not schedule `frontend-vite-basic` removal until the protected duplicate
    core file and safe-check contract have a dedicated plan.
-10. Do not schedule `transcendental_resonance_frontend` removal until imports,
+11. Do not schedule `transcendental_resonance_frontend` removal until imports,
    tests, install scripts, and compatibility wrappers are intentionally retired.
 
 ## Required Checks Before Any Future Deletion

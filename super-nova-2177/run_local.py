@@ -13,14 +13,6 @@ ROOT = Path(__file__).resolve().parent
 DEFAULT_BACKEND_URL = "http://127.0.0.1:8000"
 
 FRONTENDS = {
-    "next": {
-        "dir": ROOT / "frontend-next",
-        "env_key": "NEXT_PUBLIC_API_URL",
-        "port": 3000,
-        "command": ["npm", "run", "dev"],
-        "type": "next",
-        "status": "legacy",
-    },
     "vite-basic": {
         "dir": ROOT / "frontend-vite-basic",
         "env_key": "VITE_API_URL",
