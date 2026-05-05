@@ -83,6 +83,16 @@ should live in persistent object storage or an equivalent durable media layer.
   off-screen.
 - [ ] Account/sign-in modal remains usable on mobile.
 
+## Advisory FE7 E2E Smoke
+
+- [ ] From `super-nova-2177/frontend-social-seven`, run `npm run test:e2e`
+  after installing Playwright browsers with `npx playwright install chromium`.
+- [ ] Confirm the signed-out home/feed shell renders with mocked public backend
+  reads.
+- [ ] Confirm `/about` renders the standalone about page.
+- [ ] Keep this advisory until broader backend-seeded and mobile E2E coverage is
+  stable enough to become a required branch check.
+
 ## Safety Gates
 
 - [ ] MCP remains read-only.

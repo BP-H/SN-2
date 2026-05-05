@@ -6,7 +6,9 @@
     "dev": "next dev -p 3007",
     "build": "next build",
     "start": "next start -p ${PORT:-3000}",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.5.9",
@@ -22,6 +24,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.59.1",
     "@tailwindcss/postcss": "^4.1.17",
     "eslint": "^9",
     "eslint-config-next": "15.5.15",

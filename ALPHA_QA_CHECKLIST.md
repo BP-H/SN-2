@@ -226,3 +226,9 @@ return here for the fuller alpha release signoff.
 - [ ] **FE7 metadata and nested-route assets**
   - Expected: production pages expose SuperNova title/description/social metadata and nested routes load shared assets from absolute paths such as `/spinner.svg`.
   - Quick test: open a proposal/profile nested route, trigger a loading state if practical, and inspect page metadata/source in a preview build.
+
+## Advisory E2E
+
+- [ ] **Minimal FE7 Playwright smoke**
+  - Expected: the advisory Playwright smoke scaffold boots the active FE7 app and verifies the signed-out home/feed shell plus `/about`.
+  - Quick test: from `super-nova-2177/frontend-social-seven`, run `npm run test:e2e` after `npx playwright install chromium`. Keep this advisory until backend-seeded and mobile E2E coverage is broader and stable.
