@@ -21,14 +21,6 @@ FRONTENDS = {
         "type": "vite",
         "status": "legacy/off-path",
     },
-    "social-six": {
-        "dir": ROOT / "frontend-social-six",
-        "env_key": "NEXT_PUBLIC_API_URL",
-        "port": 3001,
-        "command": ["npm", "run", "dev"],
-        "type": "next",
-        "status": "legacy/off-path",
-    },
     "social-seven": {
         "dir": ROOT / "frontend-social-seven",
         "env_key": "NEXT_PUBLIC_API_URL",

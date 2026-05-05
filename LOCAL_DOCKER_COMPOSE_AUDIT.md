@@ -126,9 +126,10 @@ Classification:
 - `super-nova-2177/frontend-next/Dockerfile`: later deleted with the retired
   `frontend-next` source after owner-accepted external deployment/auth/API-route
   risk. It is no longer a retained Dockerfile surface.
-- `super-nova-2177/frontend-social-six/Dockerfile`: retained
-  auth-history-sensitive legacy surface; see
-  `FRONTEND_SOCIAL_SIX_AUTH_AUDIT.md`.
+- `super-nova-2177/frontend-social-six/Dockerfile`: later deleted with the
+  retired `frontend-social-six` source after owner-accepted external
+  Supabase/Vercel/Railway/auth/API-route risk. It is no longer a retained
+  Dockerfile surface.
 - `super-nova-2177/backend/supernova_2177_ui_weighted/Dockerfile`: nested
   legacy/protected-core-adjacent Dockerfile.
 - `super-nova-2177/backend/supernova_2177_ui_weighted/backend/Dockerfile`:

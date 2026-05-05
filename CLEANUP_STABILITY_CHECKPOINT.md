@@ -24,8 +24,9 @@ status record after single-target cleanup work passes its own checks.
 - `frontend-next` runnable local launcher support was retired, and the source
   folder was later deleted after fresh repo-local checks with owner-accepted
   external deployment/auth/API-route risk.
-- `frontend-social-six` was audited only. Source and launcher support remain
-  retained pending Supabase, Vercel, and Railway verification.
+- `frontend-social-six` was audited, then later deleted with launcher support
+  retired after fresh repo-local checks and owner-accepted external
+  Supabase/Vercel/Railway/auth/API-route risk.
 - Nested legacy surfaces under
   `backend/supernova_2177_ui_weighted/` were audited only. `nova-web`,
   `nova-api`, and `transcendental_resonance_frontend` remain retained pending
@@ -42,7 +43,6 @@ Do not touch these casually:
 - Protected duplicate core:
   `super-nova-2177/frontend-vite-basic/supernovacore.py`
 - `super-nova-2177/frontend-vite-basic`
-- `super-nova-2177/frontend-social-six`
 - `super-nova-2177/backend/supernova_2177_ui_weighted/nova-web`
 - `super-nova-2177/backend/supernova_2177_ui_weighted/nova-api`
 - `super-nova-2177/backend/supernova_2177_ui_weighted/transcendental_resonance_frontend`
@@ -52,11 +52,11 @@ Do not touch these casually:
 The local repo cannot prove these external states. Verify them manually before
 future deletion or deployment-sensitive cleanup:
 
-- Vercel project roots for possibly `frontend-social-six`; `frontend-vite-3d`
-  external Vercel/API-route risk and `frontend-next` external
-  deployment/auth/API-route risk were explicitly accepted for deletion.
+- `frontend-vite-3d` external Vercel/API-route risk, `frontend-next` external
+  deployment/auth/API-route risk, and `frontend-social-six` external
+  Supabase/Vercel/Railway/auth/API-route risk were explicitly accepted for
+  deletion.
 - Railway and Docker deploy roots
-- Supabase provider redirect URLs for Social Six
 - DNS and domain targets
 - Durable media storage and old uploaded image bytes
 - GitHub branch protection required checks
@@ -81,8 +81,9 @@ future deletion or deployment-sensitive cleanup:
 - `frontend-next` has been deleted. Revert the deletion PR if the retired
   source, Dockerfile, Supabase auth surface, or `app/api/ai` handler are needed
   again.
-- Do not retire or delete `frontend-social-six` until Supabase provider
-  redirects, Vercel/Railway roots, and auth-history needs are manually checked.
+- `frontend-social-six` has been deleted and its launcher support retired.
+  Revert the deletion PR if the retired source, launcher, Dockerfile, Supabase
+  auth surface, or `app/api/ai` handler are needed again.
 - Do not move, rename, or delete nested legacy surfaces until deployment,
   import, wrapper, install-script, and test gates are satisfied.
 - Do not update or retire local Docker Compose config until the manual checks in

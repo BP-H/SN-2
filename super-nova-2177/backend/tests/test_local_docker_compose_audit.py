@@ -34,7 +34,7 @@ class LocalDockerComposeAuditTests(unittest.TestCase):
             "super-nova-2177/backend/Dockerfile",
             "super-nova-2177/frontend-social-seven/Dockerfile",
             "frontend-next` source after owner-accepted external deployment/auth/API-route",
-            "super-nova-2177/frontend-social-six/Dockerfile",
+            "frontend-social-six` source after owner-accepted external",
             "super-nova-2177/backend/supernova_2177_ui_weighted/nova-api/Dockerfile",
         ]:
             self.assertIn(expected, audit)

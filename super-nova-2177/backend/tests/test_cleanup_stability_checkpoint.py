@@ -35,7 +35,6 @@ class CleanupStabilityCheckpointTests(unittest.TestCase):
             "super-nova-2177/backend/supernova_2177_ui_weighted/supernovacore.py",
             "super-nova-2177/frontend-vite-basic/supernovacore.py",
             "super-nova-2177/frontend-vite-basic",
-            "super-nova-2177/frontend-social-six",
             "super-nova-2177/backend/supernova_2177_ui_weighted/nova-web",
             "super-nova-2177/backend/supernova_2177_ui_weighted/nova-api",
             "super-nova-2177/backend/supernova_2177_ui_weighted/transcendental_resonance_frontend",
@@ -46,9 +45,10 @@ class CleanupStabilityCheckpointTests(unittest.TestCase):
         checkpoint = (ROOT / "CLEANUP_STABILITY_CHECKPOINT.md").read_text(encoding="utf-8")
 
         for expected in [
-            "Vercel project roots",
+            "external Vercel/API-route risk",
+            "external deployment/auth/API-route risk",
+            "Supabase/Vercel/Railway/auth/API-route risk",
             "Railway and Docker deploy roots",
-            "Supabase provider redirect URLs",
             "DNS and domain targets",
             "Durable media storage",
             "old uploaded image bytes",

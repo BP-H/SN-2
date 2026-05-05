@@ -41,10 +41,12 @@ class CleanupLauncherRetirementTests(unittest.TestCase):
         self.assertNotIn("frontend-professional", inventory_script)
         self.assertNotIn("frontend-vite-3d", inventory_script)
         self.assertNotIn("frontend-next", inventory_script)
+        self.assertNotIn("frontend-social-six", inventory_script)
         self.assertNotIn("super-nova-2177/frontend-nova", candidate_section)
         self.assertNotIn("super-nova-2177/frontend-professional", candidate_section)
         self.assertNotIn("super-nova-2177/frontend-vite-3d", candidate_section)
         self.assertNotIn("super-nova-2177/frontend-next", candidate_section)
+        self.assertNotIn("super-nova-2177/frontend-social-six", candidate_section)
         self.assertIn("Completed entries are history, not active cleanup candidates.", snapshot)
 
     def test_frontend_vite_3d_source_is_deleted_after_owner_accepted_risk(self):
@@ -63,7 +65,9 @@ class CleanupLauncherRetirementTests(unittest.TestCase):
         repo_status = (APP_ROOT / "REPO_STATUS.md").read_text(encoding="utf-8")
         self.assertIn("Active social frontend: `frontend-social-seven`", repo_status)
         self.assertIn("The only active/default frontend is `frontend-social-seven`", repo_status)
-        self.assertIn("frontend-vite-3d`, and `frontend-next` were deleted after launcher retirement", repo_status)
+        self.assertIn("frontend-vite-3d`", repo_status)
+        self.assertIn("frontend-next`", repo_status)
+        self.assertIn("frontend-social-six` were deleted after launcher retirement", repo_status)
 
         roadmap = (ROOT / "LEGACY_CLEANUP_ROADMAP.md").read_text(encoding="utf-8")
         self.assertIn("frontend-vite-3d` | Deleted after runnable local launcher retirement", roadmap)
@@ -108,7 +112,8 @@ class CleanupLauncherRetirementTests(unittest.TestCase):
         repo_status = (APP_ROOT / "REPO_STATUS.md").read_text(encoding="utf-8")
         self.assertIn("Active social frontend: `frontend-social-seven`", repo_status)
         self.assertIn("The only active/default frontend is `frontend-social-seven`", repo_status)
-        self.assertIn("frontend-next` were deleted after launcher retirement", repo_status)
+        self.assertIn("frontend-next`", repo_status)
+        self.assertIn("frontend-social-six` were deleted after launcher retirement", repo_status)
 
         roadmap = (ROOT / "LEGACY_CLEANUP_ROADMAP.md").read_text(encoding="utf-8")
         self.assertIn("frontend-next` | Deleted after runnable local launcher retirement", roadmap)
@@ -123,29 +128,34 @@ class CleanupLauncherRetirementTests(unittest.TestCase):
         self.assertIn("Supabase auth", audit)
         self.assertIn("external deployment/auth/API-route risk", audit)
 
-    def test_frontend_social_six_auth_audit_defers_launcher_retirement(self):
-        self.assertTrue((APP_ROOT / "frontend-social-six").is_dir())
-        self.assertTrue((APP_ROOT / "start_frontend_social_six.ps1").exists())
+    def test_frontend_social_six_source_and_launcher_are_deleted_after_owner_accepted_risk(self):
+        self.assertFalse((APP_ROOT / "frontend-social-six" / "package.json").exists())
+        self.assertFalse((APP_ROOT / "frontend-social-six" / "Dockerfile").exists())
+        self.assertFalse((APP_ROOT / "frontend-social-six" / "SOCIAL_AUTH_SETUP.md").exists())
+        self.assertFalse((APP_ROOT / "frontend-social-six" / "supabaseClient.js").exists())
+        self.assertFalse((APP_ROOT / "frontend-social-six" / "app" / "api" / "ai" / "route.js").exists())
+        self.assertFalse((APP_ROOT / "start_frontend_social_six.ps1").exists())
 
         run_local = (APP_ROOT / "run_local.py").read_text(encoding="utf-8")
-        self.assertIn('"social-six": {', run_local)
-        self.assertIn("frontend-social-six", run_local)
+        self.assertNotIn('"social-six": {', run_local)
+        self.assertNotIn("frontend-social-six", run_local)
 
         launcher = (APP_ROOT / "start_supernova.ps1").read_text(encoding="utf-8")
-        self.assertIn('"6" = "frontend-social-six"', launcher)
-        self.assertIn('"frontend-social-six" = 3001', launcher)
+        self.assertIn('"6" = "__retired_frontend_social_six"', launcher)
+        self.assertIn("frontend-social-six was deleted after launcher retirement", launcher)
+        self.assertNotIn('"frontend-social-six" = 3001', launcher)
 
         repo_status = (APP_ROOT / "REPO_STATUS.md").read_text(encoding="utf-8")
         self.assertIn("Active social frontend: `frontend-social-seven`", repo_status)
-        self.assertIn("frontend-social-six` (source and launcher retained", repo_status)
+        self.assertIn("frontend-social-six` were deleted after launcher retirement", repo_status)
 
         audit = (ROOT / "FRONTEND_SOCIAL_SIX_AUTH_AUDIT.md").read_text(encoding="utf-8")
-        self.assertIn("Launcher retirement and source deletion are deferred", audit)
+        self.assertIn("Owner-Accepted Deletion", audit)
+        self.assertIn("owner explicitly accepted the remaining external uncertainty", audit)
         self.assertIn("Supabase auth", audit)
         self.assertIn("SOCIAL_AUTH_SETUP.md", audit)
         self.assertIn("app/api/ai", audit)
-        self.assertIn("Manual Vercel", audit)
-        self.assertIn("Railway", audit)
+        self.assertIn("external Supabase/Vercel/Railway/auth/API-route risk", audit)
 
 
 if __name__ == "__main__":

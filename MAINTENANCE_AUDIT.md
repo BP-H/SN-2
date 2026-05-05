@@ -39,7 +39,6 @@ Keep these compatible unless a dedicated migration plan exists:
 
 These may be useful references or future branches, but should not be deleted from `master` without branch-tested proof:
 
-- `super-nova-2177/frontend-social-six/`
 - `super-nova-2177/frontend-vite-basic/`
 - nested or duplicate backend experiments under `super-nova-2177/backend/supernova_2177_ui_weighted/`
 
@@ -57,12 +56,10 @@ workflow, deployment config, runtime, or launcher dependency outside the folder.
 The owner explicitly accepted the remaining external deployment/auth/API-route
 uncertainty documented in `FRONTEND_NEXT_DEPLOYMENT_AUDIT.md`.
 
-`super-nova-2177/frontend-social-six/` remains in the tree with runnable local
-launcher support intact because it has Supabase auth dependencies, a standalone
-Dockerfile, social auth setup docs, and an `app/api/ai` route. The audit is
-captured in `FRONTEND_SOCIAL_SIX_AUTH_AUDIT.md`; launcher retirement and source
-deletion remain deferred until manual Supabase/Vercel/Railway verification
-confirms the provider-auth flow is inactive.
+`super-nova-2177/frontend-social-six/` was deleted after fresh repo-local
+reference checks, and its runnable local launcher support was retired. The owner
+explicitly accepted the remaining external Supabase/Vercel/Railway/auth/API-route
+uncertainty documented in `FRONTEND_SOCIAL_SIX_AUTH_AUDIT.md`.
 
 `super-nova-2177/frontend-vite-3d/` was deleted after its runnable local
 launcher paths were retired and fresh repo-local reference checks found no
