@@ -232,3 +232,6 @@ return here for the fuller alpha release signoff.
 - [ ] **Minimal FE7 Playwright smoke**
   - Expected: the advisory Playwright smoke scaffold boots the active FE7 app and verifies the signed-out home/feed shell plus `/about`.
   - Quick test: from `super-nova-2177/frontend-social-seven`, run `npm run test:e2e` after `npx playwright install chromium`. Keep this advisory until backend-seeded and mobile E2E coverage is broader and stable.
+- [ ] **Optional real-backend public smoke**
+  - Expected: with `PLAYWRIGHT_REAL_BACKEND=1` and `NEXT_PUBLIC_API_URL` pointed at local/staging backend, FE7 verifies backend health/status/feed public reads and renders either public feed content or the clean empty state without signing in or writing data.
+  - Quick test: run `npm run test:e2e:real`; if the backend is unavailable, the spec should skip with a clear advisory message.

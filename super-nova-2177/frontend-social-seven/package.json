@@ -8,6 +8,8 @@
     "start": "next start -p ${PORT:-3000}",
     "lint": "eslint",
     "test:e2e": "playwright test",
+    "test:e2e:mocked": "playwright test tests/e2e/public-smoke.spec.js",
+    "test:e2e:real": "playwright test tests/e2e/real-backend-public.spec.js",
     "test:e2e:headed": "playwright test --headed"
   },
   "dependencies": {

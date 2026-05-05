@@ -90,6 +90,9 @@ should live in persistent object storage or an equivalent durable media layer.
 - [ ] Confirm the signed-out home/feed shell renders with mocked public backend
   reads.
 - [ ] Confirm `/about` renders the standalone about page.
+- [ ] Optional: set `PLAYWRIGHT_REAL_BACKEND=1` and `NEXT_PUBLIC_API_URL` to a
+  local or staging backend, then run `npm run test:e2e:real` to check public
+  backend health/status/feed reads without signing in or mutating data.
 - [ ] Keep this advisory until broader backend-seeded and mobile E2E coverage is
   stable enough to become a required branch check.
 
