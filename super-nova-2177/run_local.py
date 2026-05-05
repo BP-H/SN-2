@@ -21,14 +21,6 @@ FRONTENDS = {
         "type": "next",
         "status": "legacy",
     },
-    "professional": {
-        "dir": ROOT / "frontend-professional",
-        "env_key": "VITE_API_URL",
-        "port": 5173,
-        "command": ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173"],
-        "type": "vite",
-        "status": "legacy/off-path",
-    },
     "vite-basic": {
         "dir": ROOT / "frontend-vite-basic",
         "env_key": "VITE_API_URL",

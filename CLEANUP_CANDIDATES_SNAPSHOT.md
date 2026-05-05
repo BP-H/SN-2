@@ -18,6 +18,9 @@ This is a read-only inventory. It is not approval to delete anything from `maste
 - `super-nova-2177/frontend-nova` was deleted after launcher retirement and
   fresh reference checks found no active package, deployment, workflow, or
   runtime references.
+- `super-nova-2177/frontend-professional` runnable local launcher support was
+  retired; the source folder remains a cleanup candidate for a later
+  single-target deletion PR.
 
 ## Legacy Or Experimental Frontend Trees
 
