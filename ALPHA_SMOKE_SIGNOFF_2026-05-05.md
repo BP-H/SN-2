@@ -1,14 +1,14 @@
 # Alpha Smoke Signoff - 2026-05-05
 
-This signoff records only observed evidence after PR #46 merged. No completed
-manual browser smoke rows were supplied in the repository or prompt, so manual
-rows are marked `NOT RUN`. Automated and advisory E2E checks are recorded
-separately and are not used to infer manual `PASS` results.
+This signoff records only observed evidence after PR #47 merged. No completed
+human-clicked manual browser smoke rows were supplied in the repository or
+prompt, so manual rows are marked `NOT RUN`. Automated and advisory E2E checks
+are recorded separately and are not used to infer manual `PASS` results.
 
 ## Candidate
 
-- Commit SHA: `3476b7aa5cb3ad78c866a54aede86efb87a3c8f7`
-- Branch or PR: `master` after PR #46
+- Commit SHA: `fadfed8f1fb2d14199fa5e2e8a769c61e2d63ec9`
+- Branch or PR: `master` after PR #47
 - Frontend URL: mocked E2E used `http://127.0.0.1:3017`; real-backend E2E used `http://127.0.0.1:3018`
 - Backend URL: local smoke used `http://127.0.0.1:8000`; full `check_safe.py` public protocol smoke used `https://2177.tech`
 - MCP URL, if checked: NOT PROVIDED
@@ -17,7 +17,7 @@ separately and are not used to infer manual `PASS` results.
 - Operating system: Windows local workspace
 - Smoke owner: Codex recorded automated/advisory evidence; manual smoke owner NOT PROVIDED
 - Smoke date: 2026-05-05
-- Previous known-good rollback target: `dddc03f43288c91fa2c559f65da37bbad948682a` for this docs/test-only signoff update
+- Previous known-good rollback target: `3476b7aa5cb3ad78c866a54aede86efb87a3c8f7` for this docs/test-only signoff update
 
 ## Automated Evidence
 
@@ -34,13 +34,23 @@ separately and are not used to infer manual `PASS` results.
 E2E remains advisory for this smoke pass. Do not treat mocked or real-backend
 Playwright results as required branch-protection gates yet.
 
+## Manual Evidence Intake
+
+- Prompt evidence: no human-clicked smoke notes, screenshots, or row results
+  were provided with this pass.
+- Repository evidence scan: no new completed manual smoke signoff or screenshot
+  evidence file was found beyond this signoff and the earlier incomplete
+  signoff.
+- Result: manual smoke rows remain `NOT RUN`; no row was changed to `PASS`,
+  `FAIL`, or `BLOCKED`.
+
 ## Manual Smoke Rows
 
 | Area | Status (`PASS` / `FAIL` / `BLOCKED` / `NOT RUN`) | Evidence / notes | Follow-up |
 | --- | --- | --- | --- |
-| Account signup/signin/signout | NOT RUN | No manual browser smoke evidence was provided. | Run from `ALPHA_SMOKE_NOW.md`. |
-| Public signed-out feed/profile/proposal reads | NOT RUN | Advisory real-backend E2E covered signed-out home rendering against a local backend, but this row was not manually clicked in browser. | Run from `ALPHA_SMOKE_NOW.md`. |
-| Status routes: `/health`, `/supernova-status`, `/status` | NOT RUN | Local endpoint checks covered `/health` and `/supernova-status`; this row was not manually clicked in browser. | Run from `ALPHA_SMOKE_NOW.md`, including `/status`. |
+| Account signup/signin/signout | NOT RUN | No human-clicked manual browser smoke evidence was provided. | Run from `ALPHA_SMOKE_NOW.md`. |
+| Public signed-out feed/profile/proposal reads | NOT RUN | Advisory real-backend E2E covered signed-out home rendering against a local backend, but this row was not manually clicked by a human in browser. | Run from `ALPHA_SMOKE_NOW.md`. |
+| Status routes: `/health`, `/supernova-status`, `/status` | NOT RUN | Local endpoint checks covered `/health` and `/supernova-status`; this row was not manually clicked by a human in browser. | Run from `ALPHA_SMOKE_NOW.md`, including `/status`. |
 | Create/edit/delete post | NOT RUN | No manual browser smoke evidence was provided. | Run from `ALPHA_SMOKE_NOW.md`. |
 | Fresh image upload renders after refresh | NOT RUN | No manual browser smoke evidence was provided. | Run from `ALPHA_SMOKE_NOW.md`. |
 | Missing fresh upload fallback, if practical | NOT RUN | No manual browser smoke evidence was provided. | Run from `ALPHA_SMOKE_NOW.md`. |
@@ -60,7 +70,7 @@ Playwright results as required branch-protection gates yet.
 
 | Issue | Impact | Status (`accepted` / `blocking` / `follow-up`) | Owner | Link |
 | --- | --- | --- | --- | --- |
-| Manual browser smoke evidence was not provided. | Alpha cannot be completed from this signoff alone. | blocking | Smoke owner | `ALPHA_SMOKE_NOW.md` |
+| Human-clicked manual browser smoke evidence was not provided. | Alpha cannot be completed from this signoff alone. | blocking | Smoke owner | `ALPHA_SMOKE_NOW.md` |
 | Old uploaded images whose bytes are already missing cannot be reconstructed by app code alone. | Legacy image rows may remain broken unless bytes are restored from source files, backups, or durable storage. | follow-up | Release owner | `ALPHA_QA_CHECKLIST.md` |
 
 Image persistence note: the bounded DB-backed `data:image/...` fallback protects
@@ -86,9 +96,9 @@ stable enough to avoid noisy blocking failures.
 
 ## Decision
 
-- Smoke result (`PASS` / `FAIL` / `BLOCKED`): BLOCKED - automated guardrails and advisory real-backend E2E passed, but no completed manual browser smoke rows were provided.
+- Smoke result (`PASS` / `FAIL` / `BLOCKED`): BLOCKED - automated guardrails and advisory real-backend E2E passed, but no completed human-clicked manual browser smoke rows were provided.
 - Accepted exceptions: None recorded.
-- Rollback target: `dddc03f43288c91fa2c559f65da37bbad948682a` for this docs/test-only signoff update
+- Rollback target: `3476b7aa5cb3ad78c866a54aede86efb87a3c8f7` for this docs/test-only signoff update
 - Follow-up PRs/issues: Run and record the manual browser smoke pass from `ALPHA_SMOKE_NOW.md`.
 - Decision maker: NOT PROVIDED
 - Decision timestamp: 2026-05-05

@@ -131,15 +131,18 @@ class AlphaReadinessDocsTests(unittest.TestCase):
         )
 
         for expected in [
-            "3476b7aa5cb3ad78c866a54aede86efb87a3c8f7",
+            "fadfed8f1fb2d14199fa5e2e8a769c61e2d63ec9",
             "Automated Evidence",
+            "Manual Evidence Intake",
+            "no human-clicked smoke notes",
+            "manual smoke rows remain `NOT RUN`",
             "Backend start/check: PASS",
             "/proposals?filter=latest&limit=30",
             "PASS, `PLAYWRIGHT_PORT=3017 npm run test:e2e`",
             "PASS, `PLAYWRIGHT_REAL_BACKEND=1",
             "Manual Smoke Rows",
             "NOT RUN",
-            "No manual browser smoke evidence was provided",
+            "No human-clicked manual browser smoke evidence was provided",
             "BLOCKED - automated guardrails and advisory real-backend E2E passed",
             "Branch protection has not been verified as enabled",
             "cannot be reconstructed by app code alone",
