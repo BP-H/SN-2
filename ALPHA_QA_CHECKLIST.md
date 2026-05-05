@@ -39,6 +39,7 @@ return here for the fuller alpha release signoff.
 - [ ] **Create media post**
   - Expected: accepted media uploads attach to the post and render without overflow.
   - Quick test: post a small supported image and inspect feed/profile/mobile.
+  - Alpha persistence note: newly uploaded proposal images have a bounded DB-backed `data:image/...` fallback if the upload file disappears. Old posts whose upload file is already gone and whose stored record only contains a filename cannot be reconstructed from app code alone; restore those from a backup/source file if available. Persistent object storage remains the long-term production direction.
 - [ ] **Upload size rejection**
   - Expected: oversized image, video, and document uploads fail clearly without leaving partial files.
   - Quick test: try a deliberately oversized media/document upload in a staging or local environment.

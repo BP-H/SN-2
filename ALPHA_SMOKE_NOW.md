@@ -23,11 +23,24 @@ is intentionally being promoted.
 - [ ] Edit your own post.
 - [ ] Delete your own post.
 - [ ] Upload a fresh image and confirm it renders after feed refresh.
+- [ ] Temporarily simulate a missing fresh upload file where practical and
+  confirm the bounded DB-backed `data:image/...` fallback still renders.
+- [ ] Confirm a normal `/uploads/...` image is still preferred when the upload
+  file exists.
 - [ ] Upload a file and confirm the link/preview still works after feed refresh.
 - [ ] Open an older uploaded image if available and confirm legacy
   `uploads/<file>` paths still render.
+- [ ] If an old image file is already missing and the stored post only has a
+  filename, record it as unrecoverable from app code alone; PR #39 protects new
+  proposal images going forward but cannot reconstruct bytes that are already
+  gone.
 - [ ] Vote/support a post and remove the vote.
 - [ ] Confirm normal browsing does not hit rate limits.
+
+Image persistence note: the PR #39 alpha fix stores a bounded DB-backed
+`data:image/...` fallback for newly uploaded proposal images. This is resilience
+for alpha, not the final production storage answer. Long-term, image bytes
+should live in persistent object storage or an equivalent durable media layer.
 
 ## Comments
 

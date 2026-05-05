@@ -132,6 +132,82 @@ class CommonsRateLimitTests(unittest.TestCase):
         self.assertTrue(result["second"]["retry_after"])
         self.assertTrue(all(hit["status"] != 429 for hit in result["status_hits"]))
 
+    def test_rate_limit_breach_logs_sanitized_observability_event(self):
+        probe = PROBE_PREAMBLE + textwrap.dedent(
+            """
+            import io
+            import logging
+
+            stream = io.StringIO()
+            logger = logging.getLogger("supernova.rate_limits")
+            previous_level = logger.level
+            handler = logging.StreamHandler(stream)
+            handler.setFormatter(logging.Formatter(
+                "%(message)s "
+                "supernova_rate_limit_bucket=%(supernova_rate_limit_bucket)s "
+                "supernova_rate_limit_identity_type=%(supernova_rate_limit_identity_type)s "
+                "supernova_rate_limit_retry_after=%(supernova_rate_limit_retry_after)s "
+                "supernova_rate_limit_limit=%(supernova_rate_limit_limit)s "
+                "supernova_rate_limit_window_seconds=%(supernova_rate_limit_window_seconds)s"
+            ))
+            logger.setLevel(logging.INFO)
+            logger.addHandler(handler)
+            try:
+                ip_headers = {"X-Forwarded-For": "203.0.113.77"}
+                client.post("/auth/login", json={}, headers=ip_headers)
+                ip_limited = response_payload(client.post("/auth/login", json={}, headers=ip_headers))
+                ip_log = stream.getvalue()
+                stream.seek(0)
+                stream.truncate(0)
+
+                commons_rate_limits._reset_rate_limit_state_for_tests()
+                token = backend_app._create_wrapper_access_token("sensitive-alice", user_id=8675309)
+                user_headers = {
+                    "Authorization": f"Bearer {token}",
+                    "X-Forwarded-For": "198.51.100.9",
+                }
+                client.post("/connector/actions/draft-ai-delegate-review", json={}, headers=user_headers)
+                user_limited = response_payload(
+                    client.post("/connector/actions/draft-ai-delegate-review", json={}, headers=user_headers)
+                )
+                user_log = stream.getvalue()
+            finally:
+                logger.removeHandler(handler)
+                logger.setLevel(previous_level)
+
+            print("RATE_LIMIT_RESULT=" + json.dumps({
+                "ip_limited": ip_limited,
+                "ip_log": ip_log,
+                "user_limited": user_limited,
+                "user_log": user_log,
+            }, sort_keys=True))
+            """
+        )
+        result = run_rate_probe(
+            probe,
+            {
+                "SUPERNOVA_RATE_LIMIT_ENABLED": "true",
+                "SUPERNOVA_RATE_LIMIT_AUTH_PER_MINUTE": "1",
+                "SUPERNOVA_RATE_LIMIT_AI_GENERATION_PER_MINUTE": "1",
+            },
+        )
+
+        self.assertEqual(result["ip_limited"]["status"], 429)
+        self.assertIn("bucket=auth", result["ip_log"])
+        self.assertIn("identity_type=ip", result["ip_log"])
+        self.assertIn("limit=1", result["ip_log"])
+        self.assertIn("window_seconds=60", result["ip_log"])
+        self.assertNotIn("203.0.113.77", result["ip_log"])
+
+        self.assertEqual(result["user_limited"]["status"], 429)
+        self.assertIn("bucket=ai_generation", result["user_log"])
+        self.assertIn("identity_type=user", result["user_log"])
+        self.assertIn("limit=1", result["user_log"])
+        self.assertIn("window_seconds=60", result["user_log"])
+        self.assertNotIn("sensitive-alice", result["user_log"])
+        self.assertNotIn("8675309", result["user_log"])
+        self.assertNotIn("198.51.100.9", result["user_log"])
+
     def test_ai_upload_and_write_buckets_are_route_specific(self):
         probe = PROBE_PREAMBLE + textwrap.dedent(
             """

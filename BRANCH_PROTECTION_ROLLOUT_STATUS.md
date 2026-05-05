@@ -23,6 +23,15 @@ required status checks from `.github/workflows/local-safe-pr-gates.yml`:
 - `Backend local deterministic checks`
 - `FE7 local deterministic checks`
 
+Manual GitHub settings for the first protected-branch rollout:
+
+- Enable `Require status checks to pass before merging`.
+- Enable `Require branches to be up to date before merging`.
+- Select only `Backend local deterministic checks` and `FE7 local deterministic
+  checks` as required checks at first.
+- Leave live/network smoke checks advisory and unrequired until deployment
+  dependencies are stable enough to be a blocking gate.
+
 These jobs cover focused backend deterministic tests, FE7 lint/build, the local
 safe check, and protected core zero-diff. Keep live/network smoke checks advisory
 for now because they depend on deployment and public network availability.

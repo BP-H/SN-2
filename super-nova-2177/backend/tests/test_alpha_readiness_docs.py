@@ -36,6 +36,8 @@ class AlphaReadinessDocsTests(unittest.TestCase):
         self.assertIn("Candidate Required Checks", status_doc)
         self.assertIn("Backend local deterministic checks", status_doc)
         self.assertIn("FE7 local deterministic checks", status_doc)
+        self.assertIn("Require status checks to pass before merging", status_doc)
+        self.assertIn("Require branches to be up to date before merging", status_doc)
         self.assertIn("Keep live/network smoke checks advisory", status_doc)
         self.assertIn("SUPERNOVA_RATE_LIMIT_ENABLED=false", status_doc)
 
@@ -50,6 +52,9 @@ class AlphaReadinessDocsTests(unittest.TestCase):
             "comment",
             "Reply to a comment",
             "Upload a fresh image",
+            "data:image/...",
+            "cannot reconstruct bytes that are already",
+            "/uploads/...",
             "older uploaded image",
             "Messages",
             "Signed-out feed read",
@@ -64,6 +69,9 @@ class AlphaReadinessDocsTests(unittest.TestCase):
 
         checklist = (REPO_ROOT / "ALPHA_QA_CHECKLIST.md").read_text(encoding="utf-8")
         self.assertIn("ALPHA_SMOKE_NOW.md", checklist)
+        self.assertIn("bounded DB-backed `data:image/...` fallback", checklist)
+        self.assertIn("cannot be reconstructed from app code alone", checklist)
+        self.assertIn("Persistent object storage", checklist)
 
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+import logging
 import os
 import threading
 import time
@@ -7,6 +8,7 @@ from typing import Any, Callable, Dict, Optional
 from fastapi import Request
 
 
+RATE_LIMIT_LOGGER = logging.getLogger("supernova.rate_limits")
 RATE_LIMIT_BUCKET_CONFIG: Dict[str, Dict[str, int | str]] = {
     "auth": {"env": "SUPERNOVA_RATE_LIMIT_AUTH_PER_MINUTE", "default": 24, "window": 60},
     "uploads": {"env": "SUPERNOVA_RATE_LIMIT_UPLOADS_PER_HOUR", "default": 80, "window": 3600},
@@ -107,6 +109,10 @@ def _rate_limit_identity(
     return f"ip:{host}"
 
 
+def _rate_limit_identity_type(identity: str) -> str:
+    return "user" if str(identity or "").startswith("user:") else "ip"
+
+
 def rate_limit_attempt(
     request: Request,
     *,
@@ -129,6 +135,22 @@ def rate_limit_attempt(
             attempts.popleft()
         if len(attempts) >= limit:
             retry_after = max(1, int(window_seconds - (now - attempts[0])) + 1)
+            identity_type = _rate_limit_identity_type(identity)
+            RATE_LIMIT_LOGGER.info(
+                "rate_limit_exceeded bucket=%s identity_type=%s retry_after=%s limit=%s window_seconds=%s",
+                bucket,
+                identity_type,
+                retry_after,
+                limit,
+                window_seconds,
+                extra={
+                    "supernova_rate_limit_bucket": bucket,
+                    "supernova_rate_limit_identity_type": identity_type,
+                    "supernova_rate_limit_retry_after": retry_after,
+                    "supernova_rate_limit_limit": limit,
+                    "supernova_rate_limit_window_seconds": window_seconds,
+                },
+            )
             return bucket, retry_after
         attempts.append(now)
     return bucket, None
