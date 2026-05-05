@@ -37,7 +37,6 @@ class CleanupStabilityCheckpointTests(unittest.TestCase):
             "super-nova-2177/frontend-vite-basic",
             "super-nova-2177/frontend-social-six",
             "super-nova-2177/frontend-next",
-            "super-nova-2177/frontend-vite-3d",
             "super-nova-2177/backend/supernova_2177_ui_weighted/nova-web",
             "super-nova-2177/backend/supernova_2177_ui_weighted/nova-api",
             "super-nova-2177/backend/supernova_2177_ui_weighted/transcendental_resonance_frontend",

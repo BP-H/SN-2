@@ -89,7 +89,7 @@ Additional checks:
 | `super-nova-2177/frontend-next` | Source retained; runnable local launcher support retired after fresh checks. Dedicated deployment/auth/security audit found a standalone Next package, Dockerfile, Supabase auth dependencies, and an `app/api/ai` route. Local repo checks found no active workflow or external deploy config pointing to it, but Vercel/project-root settings were not manually verified. | Deployment/auth/security-sensitive legacy Next app; no active launcher. | Defer source deletion until manual Vercel/project-root verification confirms the folder, Dockerfile path, Supabase auth surface, and `/api/ai` handler are not deployed. |
 | `super-nova-2177/frontend-social-six` | Source and launchers retained. Dedicated auth/deployment audit found a standalone Next package, Dockerfile, Supabase auth dependencies, `SOCIAL_AUTH_SETUP.md`, and an `app/api/ai` route. Local repo checks found no active workflow or external deploy config pointing to it, but Supabase/Vercel/Railway settings were not manually verified. | Auth-history-sensitive legacy social frontend with active local launcher. | Defer launcher retirement and source deletion until manual Supabase/Vercel/Railway verification confirms the provider-auth flow, Dockerfile path, and `/api/ai` handler are inactive. |
 | `super-nova-2177/frontend-vite-basic` | Referenced by cleanup docs, launcher scripts, `scripts/check_safe.py`, and protected `frontend-vite-basic/supernovacore.py` zero-diff checks. | Protected-core-sensitive. | Do not touch in early cleanup; any removal needs a separate protected-core-safe plan. |
-| `super-nova-2177/frontend-vite-3d` | Source retained; runnable local launcher support retired after fresh checks. Dedicated deployment/API audit found a standalone Vite package, `vercel.json`, and Vercel-style `api/` handlers. Local repo checks found no active workflow or external deploy config pointing to it, but Vercel project-root settings were not manually verified. | Deployment/API-sensitive; no active launcher. | Defer source deletion until manual Vercel/project-root verification confirms the folder and `/api/*` handlers are not deployed. |
+| `super-nova-2177/frontend-vite-3d` | Deleted after runnable local launcher retirement and fresh repo-local reference checks. Dedicated deployment/API audit found a standalone Vite package, `vercel.json`, and Vercel-style `api/` handlers; the owner explicitly accepted the remaining external Vercel/API-route uncertainty before deletion. | Completed deployment-sensitive legacy source deletion. | Roll back with a single revert if the retired source or Vercel-style API handlers are needed again. |
 | `super-nova-2177/backend/supernova_2177_ui_weighted/nova-web` | Dedicated nested-surface audit found a standalone Next app with package/lock/config files, API stubs, app routes, and universe docs references. | Nested legacy app; dependency/security/deployment-sensitive. | Keep retained until manual deployment checks, dependency strategy, and universe UI preservation decisions are complete. See `NESTED_LEGACY_SURFACES_AUDIT.md`. |
 | `super-nova-2177/backend/supernova_2177_ui_weighted/nova-api` | Dedicated nested-surface audit found a small standalone FastAPI service with Dockerfile and sample `/api`, `/healthz`, and `/feed` routes. | Low visible reference count, but nested backend/deployment-sensitive. | Keep retained until manual deployment checks confirm no project root or Docker/Railway path uses it. See `NESTED_LEGACY_SURFACES_AUDIT.md`. |
 | `super-nova-2177/backend/supernova_2177_ui_weighted/transcendental_resonance_frontend` | Dedicated nested-surface audit found a NiceGUI/Python UI package with install scripts, compatibility wrappers, imports, docs, and many tests. | High cleanup risk legacy Python UI package. | Do not delete, rename, or move without an import/wrapper/test migration plan. See `NESTED_LEGACY_SURFACES_AUDIT.md`. |
@@ -98,7 +98,6 @@ Additional checks:
 
 Tracked generated candidates found in the roadmap assessment:
 
-- `super-nova-2177/frontend-vite-3d/tsconfig.tsbuildinfo`
 - `super-nova-2177/frontend-vite-basic/tsconfig.tsbuildinfo`
 
 The follow-up generated-artifact cleanup removes these tracked files only. Root
@@ -122,11 +121,10 @@ config.
 6. `frontend-professional` deletion PR: completed after fresh reference checks
    found no active package, deployment, workflow, runtime, or local launcher
    dependency.
-7. `frontend-vite-3d` launcher retirement PR: completed; source folder is still
-   retained. Dedicated deployment/API audit is documented in
-   `FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`. A 2026-05-05 deletion gate recheck
-   found no explicit external Vercel/DNS/env/manual-smoke evidence, so deletion
-   remains deferred until manual verification proves it safe.
+7. `frontend-vite-3d` launcher retirement PR: completed; source folder was
+   deleted after fresh repo-local checks and owner-accepted external
+   Vercel/API-route risk documented in
+   `FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`.
 8. `frontend-next` launcher retirement PR: completed; source folder is still
    retained. Dedicated deployment/auth/security audit is documented in
    `FRONTEND_NEXT_DEPLOYMENT_AUDIT.md`, and deletion remains deferred until

@@ -30,13 +30,10 @@ Completed entries are history, not active cleanup candidates.
 - `super-nova-2177/frontend-professional` was deleted after fresh reference
   checks found no active package, deployment, workflow, runtime, or local
   launcher dependency.
-- `super-nova-2177/frontend-vite-3d` runnable local launcher support was
-  retired; the source folder remains a deployment-sensitive cleanup candidate
-  until manual Vercel/project-root verification proves its Vite app and
-  Vercel-style `/api/*` handlers are not deployed. The local repo audit is
-  recorded in `FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`. A 2026-05-05 deletion
-  gate recheck found no explicit external Vercel/DNS/env/manual-smoke evidence,
-  so deletion remains blocked.
+- `super-nova-2177/frontend-vite-3d` was deleted after runnable local launcher
+  retirement and fresh repo-local reference checks. The owner explicitly
+  accepted the remaining external Vercel/API-route uncertainty documented in
+  `FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`.
 - `super-nova-2177/frontend-next` runnable local launcher support was retired;
   the source folder remains a deployment/auth/security-sensitive cleanup
   candidate until manual Vercel/project-root verification proves its Next app,
@@ -56,7 +53,6 @@ These folders are retained/deferred candidates. Deleted folders such as
 
 - `super-nova-2177/frontend-next`
 - `super-nova-2177/frontend-social-six`
-- `super-nova-2177/frontend-vite-3d`
 - `super-nova-2177/frontend-vite-basic`
 
 ## Nested Backend Experiments
@@ -100,7 +96,6 @@ deployment/import/test gates are satisfied.
 - `super-nova-2177/frontend-next/content/proposal/content/LikesDeslikes.jsx`
 - `super-nova-2177/frontend-social-seven/content/proposal/content/LikesDeslikes.jsx`
 - `super-nova-2177/frontend-social-six/content/proposal/content/LikesDeslikes.jsx`
-- `super-nova-2177/frontend-vite-3d/src/components/LikesDeslikes.tsx`
 - `super-nova-2177/frontend-vite-basic/src/components/LikesDeslikes.tsx`
 
 ## Cleanup Rule

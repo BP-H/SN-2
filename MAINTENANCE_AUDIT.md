@@ -41,7 +41,6 @@ These may be useful references or future branches, but should not be deleted fro
 
 - `super-nova-2177/frontend-next/`
 - `super-nova-2177/frontend-social-six/`
-- `super-nova-2177/frontend-vite-3d/`
 - `super-nova-2177/frontend-vite-basic/`
 - nested or duplicate backend experiments under `super-nova-2177/backend/supernova_2177_ui_weighted/`
 
@@ -67,14 +66,11 @@ captured in `FRONTEND_SOCIAL_SIX_AUTH_AUDIT.md`; launcher retirement and source
 deletion remain deferred until manual Supabase/Vercel/Railway verification
 confirms the provider-auth flow is inactive.
 
-`super-nova-2177/frontend-vite-3d/` remains in the tree because it has package
-self-references, its own `vercel.json`, and prior API-route/deployment notes.
-Its runnable local launcher paths were retired pending a dedicated deployment
-and API-route audit. The audit is now captured in
-`FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`; source deletion remains deferred until
-manual Vercel/project-root verification confirms the folder's app and `/api/*`
-handlers are not deployed. A 2026-05-05 deletion gate recheck found no explicit
-external Vercel/DNS/env/manual-smoke evidence, so the folder remains retained.
+`super-nova-2177/frontend-vite-3d/` was deleted after its runnable local
+launcher paths were retired and fresh repo-local reference checks found no
+active workflow, deployment config, runtime, or launcher dependency outside the
+folder. The owner explicitly accepted the remaining external Vercel/API-route
+uncertainty documented in `FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`.
 
 Nested legacy surfaces under
 `super-nova-2177/backend/supernova_2177_ui_weighted/` were audited in

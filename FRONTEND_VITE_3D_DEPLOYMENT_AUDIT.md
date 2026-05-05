@@ -4,19 +4,35 @@ Date: 2026-05-05
 
 ## Decision
 
-Deletion is deferred. `super-nova-2177/frontend-vite-3d/` remains in the tree as
-a deployment-sensitive legacy source folder until a manual Vercel/project-root
-verification confirms it is not deployed and its API routes are not live.
+Deletion was performed in a later single-target cleanup PR. The owner explicitly
+accepted the external Vercel/API-route risk documented below, and fresh
+repo-local reference checks still found no active workflow, package, launcher,
+script, or deployment config outside the folder pointing to
+`super-nova-2177/frontend-vite-3d/`.
 
-This PR is audit-only for the source folder. It does not change runtime
-behavior, frontend UI, backend routes, deployment settings, uploads, DB files,
-or protected core.
+The deletion PR did not change runtime behavior, frontend UI, backend routes,
+deployment settings, uploads, DB files, or protected core.
+
+## 2026-05-05 Owner-Accepted Deletion
+
+The owner explicitly accepted the remaining external uncertainty:
+
+- unknown Vercel project root state
+- unknown active `/api/*` deployment exposure
+- unknown DNS/domain target
+- unknown env var usage for the folder's OpenAI helper endpoints
+- unknown external smoke/manual QA dependency on the Vite 3D app
+
+With that risk accepted, `super-nova-2177/frontend-vite-3d/` was deleted as a
+single cleanup target. Active production remains `frontend-social-seven` only.
+Rollback is a single revert of the deletion PR if the retired Vite source or
+Vercel-style API handlers are needed again.
 
 ## 2026-05-05 Deletion Gate Recheck
 
-Deletion remains blocked. The prompt and repository do not contain explicit
-manual external deployment verification proving that `frontend-vite-3d` is safe
-to delete.
+Deletion was previously blocked because the prompt and repository did not
+contain explicit manual external deployment verification proving that
+`frontend-vite-3d` was safe to delete.
 
 Repo-local checks were repeated:
 
@@ -57,9 +73,9 @@ Missing external verification:
 - No external smoke/manual QA evidence proves that no flow depends on the Vite
   3D app or its API routes.
 
-Result: do not delete `super-nova-2177/frontend-vite-3d/` yet. A later deletion
-PR must include the missing external evidence above, then rerun fresh repo
-reference checks and safety checks.
+Result at that time: do not delete `super-nova-2177/frontend-vite-3d/` yet. The
+later deletion PR proceeded only after the owner accepted the external risk and
+fresh repo-local reference checks were repeated.
 
 ## Local Reference Checks
 
@@ -80,11 +96,10 @@ Findings:
 - `start_frontend_vite_3d.ps1` is gone.
 - No GitHub Actions workflow points to `frontend-vite-3d`.
 - No deployment config outside the retained folder points to `frontend-vite-3d`.
-- The cleanup inventory still lists `frontend-vite-3d` as a retained legacy
-  frontend cleanup candidate.
-- Remaining repo references are cleanup/status docs, the cleanup unittest, the
-  retired launcher handoff text, and source self-references inside the retained
-  folder.
+- The cleanup inventory now records `frontend-vite-3d` as a completed deletion,
+  not a retained legacy frontend cleanup candidate.
+- Remaining repo references are cleanup/status docs, the cleanup unittest, and
+  the retired launcher handoff text.
 
 ## package.json Audit
 
@@ -130,9 +145,10 @@ These routes are not part of active FE7 and are not registered in the active
 backend. They are still deployment-sensitive because they would be live if a
 Vercel project uses `frontend-vite-3d` as its project root.
 
-## Deletion Checklist
+## Historical Deletion Checklist
 
-Before deleting `frontend-vite-3d`, verify all of the following:
+This was the preferred external verification checklist before the owner accepted
+the risk and deletion proceeded:
 
 1. In Vercel dashboard/API, no active project has `super-nova-2177/frontend-vite-3d`
    as its root directory.
@@ -147,7 +163,5 @@ Before deleting `frontend-vite-3d`, verify all of the following:
 
 ## Rollback
 
-For this audit-only PR, rollback is a single revert of documentation/test
-changes. If a later deletion PR removes the source folder, rollback should be a
-single revert restoring `super-nova-2177/frontend-vite-3d/` and the cleanup
-candidate docs.
+Rollback is a single revert restoring `super-nova-2177/frontend-vite-3d/` and
+the cleanup candidate docs.

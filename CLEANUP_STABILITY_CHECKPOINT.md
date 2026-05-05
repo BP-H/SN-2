@@ -8,8 +8,8 @@ Pause broad cleanup. The repo has completed enough cleanup and audit work for
 now; the next safe sprint should focus on alpha smoke evidence, branch
 protection, smoke-blocker fixes, first-user polish, and durable media storage.
 
-This checkpoint is documentation-only. It does not delete, move, rename,
-refactor, or change runtime behavior.
+This checkpoint began as documentation-only. Later cleanup PRs may update this
+status record after single-target cleanup work passes its own checks.
 
 ## Completed Cleanup
 
@@ -18,9 +18,9 @@ refactor, or change runtime behavior.
 - `frontend-professional` launcher support was retired and the source folder was
   deleted after fresh reference checks found no active package, deployment,
   workflow, runtime, or local launcher dependency.
-- `frontend-vite-3d` runnable local launcher support was retired. The source
-  folder is retained pending manual Vercel/project-root and API-route
-  verification.
+- `frontend-vite-3d` runnable local launcher support was retired, and the
+  source folder was later deleted after fresh repo-local checks with
+  owner-accepted external Vercel/API-route risk.
 - `frontend-next` runnable local launcher support was retired. The source
   folder is retained pending deployment, auth, and security verification.
 - `frontend-social-six` was audited only. Source and launcher support remain
@@ -43,7 +43,6 @@ Do not touch these casually:
 - `super-nova-2177/frontend-vite-basic`
 - `super-nova-2177/frontend-social-six`
 - `super-nova-2177/frontend-next`
-- `super-nova-2177/frontend-vite-3d`
 - `super-nova-2177/backend/supernova_2177_ui_weighted/nova-web`
 - `super-nova-2177/backend/supernova_2177_ui_weighted/nova-api`
 - `super-nova-2177/backend/supernova_2177_ui_weighted/transcendental_resonance_frontend`
@@ -53,8 +52,9 @@ Do not touch these casually:
 The local repo cannot prove these external states. Verify them manually before
 future deletion or deployment-sensitive cleanup:
 
-- Vercel project roots for `frontend-vite-3d`, `frontend-next`, and possibly
-  `frontend-social-six`
+- Vercel project roots for `frontend-next` and possibly `frontend-social-six`;
+  `frontend-vite-3d` external Vercel/API-route risk was explicitly accepted for
+  deletion.
 - Railway and Docker deploy roots
 - Supabase provider redirect URLs for Social Six
 - DNS and domain targets
@@ -76,8 +76,8 @@ future deletion or deployment-sensitive cleanup:
 
 ## Deferred Cleanup
 
-- Do not delete `frontend-vite-3d` until Vercel/project-root and `/api/*`
-  exposure are manually checked.
+- `frontend-vite-3d` has been deleted. Revert the deletion PR if the retired
+  source or Vercel-style `/api/*` handlers are needed again.
 - Do not delete `frontend-next` until Vercel/Railway/Docker project-root,
   Supabase auth, and `app/api/ai` exposure are manually checked.
 - Do not retire or delete `frontend-social-six` until Supabase provider
@@ -91,6 +91,6 @@ future deletion or deployment-sensitive cleanup:
 
 ## Rollback
 
-Rollback for this checkpoint is a single revert of the documentation and static
-test changes. No runtime state, deployment setting, database, upload file, or
-source folder is changed by this checkpoint.
+Rollback for this checkpoint document is a single revert of its documentation
+and static test changes. Runtime state, deployment settings, databases, upload
+files, and protected core remain outside this checkpoint.

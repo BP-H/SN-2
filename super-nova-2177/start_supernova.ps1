@@ -49,7 +49,7 @@ if ($frontendDir -eq "__retired_frontend_nova" -or $frontendDir -eq "__retired_f
     } elseif ($frontendDir -eq "__retired_frontend_next") {
         Write-Host "`nfrontend-next local launchers were retired pending deployment/auth/security audit. Use frontend-social-seven." -ForegroundColor Yellow
     } else {
-        Write-Host "`nfrontend-vite-3d local launchers were retired pending deployment/API-route audit. Use frontend-social-seven." -ForegroundColor Yellow
+        Write-Host "`nfrontend-vite-3d was deleted after launcher retirement. Use frontend-social-seven." -ForegroundColor Yellow
     }
     Write-Host "Run this launcher again and choose option 7 for Social Seven." -ForegroundColor Cyan
     exit 0

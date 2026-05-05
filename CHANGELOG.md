@@ -4,9 +4,9 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
-- Rechecked the `frontend-vite-3d` deletion gate and kept deletion blocked
-  because no explicit external Vercel/DNS/env/manual-smoke verification was
-  available.
+- Deleted the retired `frontend-vite-3d` source folder after launcher
+  retirement and owner-accepted external Vercel/API-route risk, keeping active
+  production on FE7 only.
 - Normalized cleanup docs after the audit sprint so deleted frontends are not
   active candidates, retained surfaces point to audit docs, and the read-only
   cleanup inventory includes local Docker Compose candidates.
