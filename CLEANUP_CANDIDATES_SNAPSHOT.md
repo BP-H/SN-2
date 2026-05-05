@@ -8,6 +8,10 @@ python scripts/list_cleanup_candidates.py
 
 This is a read-only inventory. It is not approval to delete anything from `master`. Any cleanup should happen on a separate branch, one candidate class at a time, with backend safety tests, FE7 lint/build, public protocol smoke, and protected-core zero diff.
 
+Current checkpoint: `CLEANUP_STABILITY_CHECKPOINT.md` summarizes completed
+cleanup, deferred cleanup, manual external verification needs, and the
+recommended non-cleanup priorities before any further deletion work.
+
 ## Completed Cleanup
 
 - `super-nova-2177/backend/supernova_2177_ui_weighted/combined_repo.md` was removed in PR #9.

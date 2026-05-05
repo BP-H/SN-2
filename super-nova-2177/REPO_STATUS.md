@@ -2,6 +2,10 @@
 
 This file is the current safety map for the repo. It is intentionally documentation-only: do not move or delete folders just to clean the tree while production is live.
 
+Current cleanup checkpoint: `../CLEANUP_STABILITY_CHECKPOINT.md`. It summarizes
+completed cleanup, retained surfaces, manual external verification needs, and
+the recommended next non-cleanup priorities.
+
 ## Active Online Surfaces
 
 - Backend API: `backend/app.py`

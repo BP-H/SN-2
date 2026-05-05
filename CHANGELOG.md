@@ -4,6 +4,9 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Added a cleanup stability checkpoint that pauses broad cleanup, summarizes
+  completed launcher/source retirements and audits, lists retained surfaces, and
+  names manual verification needed before future deletion work.
 - Added an audit for nested legacy surfaces under
   `backend/supernova_2177_ui_weighted/`, documenting why `nova-web`,
   `nova-api`, and `transcendental_resonance_frontend` require separate cleanup

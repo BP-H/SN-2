@@ -12,6 +12,11 @@ SuperNova Core contract or changing production behavior.
 This PR is documentation-first. It does not delete legacy source folders, change
 runtime behavior, change deployment config, or edit protected core files.
 
+Current checkpoint: `CLEANUP_STABILITY_CHECKPOINT.md` pauses broad cleanup after
+the completed launcher/source retirements and deployment-sensitive audits. Treat
+manual alpha smoke, branch protection, and durable media storage as higher
+priority than additional legacy deletion until that checkpoint changes.
+
 ## Protected Core
 
 Absolute protected file:

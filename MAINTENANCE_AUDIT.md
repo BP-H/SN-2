@@ -2,6 +2,10 @@
 
 This audit captures cleanup direction without changing runtime behavior. Do not delete or refactor live paths from `master` just because they appear here. Use a separate branch and prove each change with tests first.
 
+Current checkpoint: `CLEANUP_STABILITY_CHECKPOINT.md` pauses broad cleanup after
+the latest launcher/source retirements and nested audits. Use it to decide the
+next safe sprint before deleting, moving, or retiring more legacy surfaces.
+
 ## Active Production Paths
 
 - `app.py`: Railway/root compatibility entrypoint.
