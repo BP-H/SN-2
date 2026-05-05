@@ -4,6 +4,9 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Retired runnable local launcher support for the inactive `frontend-professional`
+  legacy frontend while keeping active FE7, backend runtime, uploads, DB files,
+  and protected core untouched.
 - Added in-modal AI delegate creation handoff, compacted the shared AI action modal/picker for mobile, made approve/cancel close cleanly after publish/cancel, added approval-required AI-authored post drafts from the composer, and routed AssistantOrb official AI review/comment actions through the shared approval modal instead of generic `/api/ai` comment fallback.
 - Made AI delegate review/comment fallbacks context-aware, replaced the native delegate dropdown with a custom picker, tightened the shared modal/composer controls for mobile approval-first use, and extended FE7 backend account sessions so Messages does not expire during normal alpha use.
 - Polished the shared AI delegate modal, AI Genesis step state, AssistantOrb action copy, and proposal vote accents so the approval-first AI UI reads more consistently across FE7.

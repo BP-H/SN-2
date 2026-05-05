@@ -46,6 +46,11 @@ These may be useful references or future branches, but should not be deleted fro
 retired and fresh reference checks confirmed no active package, deployment,
 workflow, or runtime dependency.
 
+`super-nova-2177/frontend-professional/` remains in the tree for now, but its
+runnable local launcher paths were retired after reference checks. A later PR
+may delete the source folder only after another single-target package,
+deployment, workflow, and docs check.
+
 ## Generated Or Local Artifact Candidates
 
 These should stay ignored where possible. If already tracked, remove only in a separate cleanup branch after confirming production and local workflows do not depend on them.
