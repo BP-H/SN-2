@@ -62,6 +62,15 @@ in `NESTED_LEGACY_SURFACES_AUDIT.md`. `nova-web`, `nova-api`, and
 `transcendental_resonance_frontend` remain retained; deletion is deferred until
 deployment/import/test gates are satisfied.
 
+## Local Docker Compose Config
+
+- `super-nova-2177/docker-compose.yml` remains unchanged after the audit in
+  `LOCAL_DOCKER_COMPOSE_AUDIT.md`. Its frontend service still builds missing
+  `./frontend`, so it is treated as stale local-only until a dedicated Docker
+  smoke/update or retirement PR.
+- Nested Compose files under `backend/supernova_2177_ui_weighted/` remain
+  retained under `NESTED_LEGACY_SURFACES_AUDIT.md` gates.
+
 ## Node Lockfiles Inside Backend Or Module Trees
 
 - `super-nova-2177/backend/supernova_2177_ui_weighted/nova-web/package-lock.json`

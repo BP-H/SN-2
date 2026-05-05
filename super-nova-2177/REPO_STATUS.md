@@ -38,7 +38,7 @@ These folders may contain useful experiments, references, or older frontend vari
 - `backend/supernova_2177_ui_weighted/nova-web` (retained; nested legacy audit required before cleanup)
 - `backend/supernova_2177_ui_weighted/nova-api` (retained; nested legacy audit required before cleanup)
 - `backend/supernova_2177_ui_weighted/transcendental_resonance_frontend` (retained; import/wrapper/test-sensitive)
-- Root `docker-compose.yml` frontend service, which references an older `./frontend` path and should be treated as local legacy until updated deliberately.
+- Root `docker-compose.yml` frontend service, which references an older `./frontend` path and should be treated as local legacy until updated deliberately. See `../LOCAL_DOCKER_COMPOSE_AUDIT.md`.
 
 ## Cleanup Policy
 
@@ -49,6 +49,7 @@ These folders may contain useful experiments, references, or older frontend vari
 - All other top-level frontend folders are legacy/off-path unless a future PR explicitly promotes one after reference, package, and deployment checks.
 - `backend/supernova_2177_ui_weighted/supernovacore.py` is protected core. Do not edit, move, rename, delete, reformat, or copy its logic during cleanup.
 - Nested legacy surfaces under `backend/supernova_2177_ui_weighted/` are documented in `../NESTED_LEGACY_SURFACES_AUDIT.md`; do not delete `nova-web`, `nova-api`, or `transcendental_resonance_frontend` without satisfying the audit gates.
+- Local Docker Compose config is documented in `../LOCAL_DOCKER_COMPOSE_AUDIT.md`; do not update, retire, or rely on the stale `./frontend` service without a dedicated Docker smoke pass.
 - Legacy folders are eligible for staged cleanup only after reference checks for package files, deployment config, Dockerfiles, README/docs, scripts, imports, and CI/workflows.
 - Do not delete legacy source folders in broad mixed cleanup PRs. Prefer one target folder or one generated-artifact class per deletion PR.
 - If a legacy folder is referenced by local launchers, update or retire those launcher references in the same explicit cleanup PR before deletion.

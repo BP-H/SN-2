@@ -4,6 +4,9 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Added a local Docker Compose audit documenting that
+  `super-nova-2177/docker-compose.yml` is stale local-only because its frontend
+  service still builds missing `./frontend`, while leaving all config unchanged.
 - Added a cleanup stability checkpoint that pauses broad cleanup, summarizes
   completed launcher/source retirements and audits, lists retained surfaces, and
   names manual verification needed before future deletion work.

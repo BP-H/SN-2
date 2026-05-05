@@ -133,9 +133,13 @@ config.
 10. Nested legacy surfaces audit: completed. `nova-web`, `nova-api`, and
     `transcendental_resonance_frontend` remain retained; future cleanup requires
     the gates in `NESTED_LEGACY_SURFACES_AUDIT.md`.
-11. Do not schedule `frontend-vite-basic` removal until the protected duplicate
+11. Local Docker Compose audit: completed. `super-nova-2177/docker-compose.yml`
+    remains unchanged and is treated as stale local-only because it still builds
+    missing `./frontend`; see `LOCAL_DOCKER_COMPOSE_AUDIT.md` before changing or
+    retiring Compose files.
+12. Do not schedule `frontend-vite-basic` removal until the protected duplicate
    core file and safe-check contract have a dedicated plan.
-12. Do not schedule `transcendental_resonance_frontend` removal until imports,
+13. Do not schedule `transcendental_resonance_frontend` removal until imports,
    tests, install scripts, and compatibility wrappers are intentionally retired.
 
 ## Required Checks Before Any Future Deletion

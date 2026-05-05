@@ -60,6 +60,8 @@ future deletion or deployment-sensitive cleanup:
 - DNS and domain targets
 - Durable media storage and old uploaded image bytes
 - GitHub branch protection required checks
+- Local Docker Compose and Docker deploy roots, especially stale `./frontend`
+  references documented in `LOCAL_DOCKER_COMPOSE_AUDIT.md`
 
 ## Recommended Next Non-Cleanup Priorities
 
@@ -82,6 +84,8 @@ future deletion or deployment-sensitive cleanup:
   redirects, Vercel/Railway roots, and auth-history needs are manually checked.
 - Do not move, rename, or delete nested legacy surfaces until deployment,
   import, wrapper, install-script, and test gates are satisfied.
+- Do not update or retire local Docker Compose config until the manual checks in
+  `LOCAL_DOCKER_COMPOSE_AUDIT.md` are complete.
 - Do not touch protected core unless a future PR explicitly follows
   `CORE_CHANGE_PROTOCOL.md`.
 
