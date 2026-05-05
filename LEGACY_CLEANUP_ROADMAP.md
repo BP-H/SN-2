@@ -17,6 +17,10 @@ the completed launcher/source retirements and deployment-sensitive audits. Treat
 manual alpha smoke, branch protection, and durable media storage as higher
 priority than additional legacy deletion until that checkpoint changes.
 
+Cleanup inventories are read-only. Retained/deferred entries are not deletion
+approval, and completed/deleted entries should not be reintroduced as active
+candidates.
+
 ## Protected Core
 
 Absolute protected file:
@@ -133,10 +137,10 @@ config.
 10. Nested legacy surfaces audit: completed. `nova-web`, `nova-api`, and
     `transcendental_resonance_frontend` remain retained; future cleanup requires
     the gates in `NESTED_LEGACY_SURFACES_AUDIT.md`.
-11. Local Docker Compose audit: completed. `super-nova-2177/docker-compose.yml`
-    remains unchanged and is treated as stale local-only because it still builds
-    missing `./frontend`; see `LOCAL_DOCKER_COMPOSE_AUDIT.md` before changing or
-    retiring Compose files.
+11. Local Docker Compose audit: completed. Project-level
+    `super-nova-2177/docker-compose.yml` remains unchanged and is treated as
+    stale local-only because it still builds missing `./frontend`; see
+    `LOCAL_DOCKER_COMPOSE_AUDIT.md` before changing or retiring Compose files.
 12. Do not schedule `frontend-vite-basic` removal until the protected duplicate
    core file and safe-check contract have a dedicated plan.
 13. Do not schedule `transcendental_resonance_frontend` removal until imports,

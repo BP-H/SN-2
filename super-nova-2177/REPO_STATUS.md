@@ -38,7 +38,7 @@ These folders may contain useful experiments, references, or older frontend vari
 - `backend/supernova_2177_ui_weighted/nova-web` (retained; nested legacy audit required before cleanup)
 - `backend/supernova_2177_ui_weighted/nova-api` (retained; nested legacy audit required before cleanup)
 - `backend/supernova_2177_ui_weighted/transcendental_resonance_frontend` (retained; import/wrapper/test-sensitive)
-- Root `docker-compose.yml` frontend service, which references an older `./frontend` path and should be treated as local legacy until updated deliberately. See `../LOCAL_DOCKER_COMPOSE_AUDIT.md`.
+- Project-level `docker-compose.yml` frontend service, which references an older `./frontend` path and should be treated as local legacy until updated deliberately. See `../LOCAL_DOCKER_COMPOSE_AUDIT.md`.
 
 ## Cleanup Policy
 

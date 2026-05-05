@@ -4,6 +4,9 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Normalized cleanup docs after the audit sprint so deleted frontends are not
+  active candidates, retained surfaces point to audit docs, and the read-only
+  cleanup inventory includes local Docker Compose candidates.
 - Added a local Docker Compose audit documenting that
   `super-nova-2177/docker-compose.yml` is stale local-only because its frontend
   service still builds missing `./frontend`, while leaving all config unchanged.

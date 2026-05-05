@@ -22,6 +22,12 @@ LEGACY_FRONTEND_DIRS = {
     "super-nova-2177/frontend-vite-basic",
 }
 
+LOCAL_DOCKER_COMPOSE_PATHS = {
+    "super-nova-2177/docker-compose.yml",
+    "super-nova-2177/backend/supernova_2177_ui_weighted/docker-compose.yml",
+    "super-nova-2177/backend/supernova_2177_ui_weighted/backend/docker-compose.yml",
+}
+
 TRACKED_ARTIFACT_SUFFIXES = {
     ".db",
     ".sqlite",
@@ -86,6 +92,9 @@ def classify(paths: list[str]) -> dict[str, list[str]]:
         if any(lower_path.startswith(frontend_dir + "/") for frontend_dir in LEGACY_FRONTEND_DIRS):
             frontend_root = "/".join(path.split("/")[:2])
             add_once(candidates, "legacy or experimental frontend trees", frontend_root)
+
+        if path in LOCAL_DOCKER_COMPOSE_PATHS:
+            add_once(candidates, "local docker compose configs", path)
 
         if lower_path.startswith("super-nova-2177/backend/supernova_2177_ui_weighted/backend/"):
             add_once(candidates, "nested backend experiments", path)

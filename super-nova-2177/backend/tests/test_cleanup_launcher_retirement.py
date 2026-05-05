@@ -28,6 +28,21 @@ class CleanupLauncherRetirementTests(unittest.TestCase):
         self.assertIn("super-nova-2177/backend/supernova_2177_ui_weighted/supernovacore.py", roadmap)
         self.assertIn("frontend-professional` | Deleted after launcher retirement", roadmap)
 
+    def test_deleted_frontends_are_not_relisted_as_active_inventory_candidates(self):
+        inventory_script = (ROOT / "scripts" / "list_cleanup_candidates.py").read_text(
+            encoding="utf-8"
+        )
+        snapshot = (ROOT / "CLEANUP_CANDIDATES_SNAPSHOT.md").read_text(encoding="utf-8")
+        candidate_section = snapshot.split("## Legacy Or Experimental Frontend Trees", 1)[1].split(
+            "## Nested Backend Experiments", 1
+        )[0]
+
+        self.assertNotIn("frontend-nova", inventory_script)
+        self.assertNotIn("frontend-professional", inventory_script)
+        self.assertNotIn("super-nova-2177/frontend-nova", candidate_section)
+        self.assertNotIn("super-nova-2177/frontend-professional", candidate_section)
+        self.assertIn("Completed entries are history, not active cleanup candidates.", snapshot)
+
     def test_frontend_vite_3d_launcher_is_retired_without_source_deletion(self):
         self.assertTrue((APP_ROOT / "frontend-vite-3d").is_dir())
         self.assertFalse((APP_ROOT / "start_frontend_vite_3d.ps1").exists())

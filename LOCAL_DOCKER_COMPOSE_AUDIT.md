@@ -13,6 +13,9 @@ frontend because it still builds `./frontend`, a path that is not present in the
 current checkout. It should not be used as an alpha deployment source without a
 dedicated Docker smoke pass and an explicit update/retirement PR.
 
+This audit uses "project-level" for `super-nova-2177/docker-compose.yml`.
+There is no `docker-compose.yml` at the repository checkout root.
+
 ## Reference Checks Performed
 
 - `git grep -n "docker-compose" -- .`

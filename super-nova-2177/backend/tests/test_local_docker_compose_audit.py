@@ -48,6 +48,20 @@ class LocalDockerComposeAuditTests(unittest.TestCase):
         self.assertIn("build: ./frontend", compose)
         self.assertNotIn("frontend-social-seven", compose)
 
+    def test_cleanup_inventory_script_prints_compose_candidates(self):
+        script = (ROOT / "scripts" / "list_cleanup_candidates.py").read_text(
+            encoding="utf-8"
+        )
+
+        for expected in [
+            "LOCAL_DOCKER_COMPOSE_PATHS",
+            "local docker compose configs",
+            "super-nova-2177/docker-compose.yml",
+            "super-nova-2177/backend/supernova_2177_ui_weighted/docker-compose.yml",
+            "super-nova-2177/backend/supernova_2177_ui_weighted/backend/docker-compose.yml",
+        ]:
+            self.assertIn(expected, script)
+
     def test_docs_point_to_local_docker_compose_audit(self):
         for path in [
             ROOT / "MAINTENANCE_AUDIT.md",

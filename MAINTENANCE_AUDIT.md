@@ -83,10 +83,10 @@ Docker/API, import, wrapper, install, or test dependencies. Protected core files
 remain untouched.
 
 Local Docker Compose config was audited in `LOCAL_DOCKER_COMPOSE_AUDIT.md`.
-`super-nova-2177/docker-compose.yml` remains unchanged and is treated as stale
-local-only because its frontend service still builds the missing `./frontend`
-path instead of active FE7. Nested Compose files remain retained under the
-nested legacy audit gates.
+Project-level `super-nova-2177/docker-compose.yml` remains unchanged and is
+treated as stale local-only because its frontend service still builds the
+missing `./frontend` path instead of active FE7. Nested Compose files remain
+retained under the nested legacy audit gates.
 
 ## Generated Or Local Artifact Candidates
 

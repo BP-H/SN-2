@@ -1,18 +1,23 @@
 # Cleanup Candidates Snapshot
 
-Generated on 2026-04-26 from:
+Originally generated on 2026-04-26 from:
 
 ```powershell
 python scripts/list_cleanup_candidates.py
 ```
 
-This is a read-only inventory. It is not approval to delete anything from `master`. Any cleanup should happen on a separate branch, one candidate class at a time, with backend safety tests, FE7 lint/build, public protocol smoke, and protected-core zero diff.
+This is a read-only inventory, later updated with explicit audit outcomes. It is
+not approval to delete anything from `master`. Any cleanup should happen on a
+separate branch, one candidate class at a time, with backend safety tests, FE7
+lint/build, public protocol smoke, and protected-core zero diff.
 
 Current checkpoint: `CLEANUP_STABILITY_CHECKPOINT.md` summarizes completed
 cleanup, deferred cleanup, manual external verification needs, and the
 recommended non-cleanup priorities before any further deletion work.
 
 ## Completed Cleanup
+
+Completed entries are history, not active cleanup candidates.
 
 - `super-nova-2177/backend/supernova_2177_ui_weighted/combined_repo.md` was removed in PR #9.
 - It was a generated combined repository snapshot only.
@@ -44,6 +49,9 @@ recommended non-cleanup priorities before any further deletion work.
 
 ## Legacy Or Experimental Frontend Trees
 
+These folders are retained/deferred candidates. Deleted folders such as
+`frontend-nova` and `frontend-professional` should not be relisted here.
+
 - `super-nova-2177/frontend-next`
 - `super-nova-2177/frontend-social-six`
 - `super-nova-2177/frontend-vite-3d`
@@ -68,8 +76,10 @@ deployment/import/test gates are satisfied.
   `LOCAL_DOCKER_COMPOSE_AUDIT.md`. Its frontend service still builds missing
   `./frontend`, so it is treated as stale local-only until a dedicated Docker
   smoke/update or retirement PR.
-- Nested Compose files under `backend/supernova_2177_ui_weighted/` remain
-  retained under `NESTED_LEGACY_SURFACES_AUDIT.md` gates.
+- `super-nova-2177/backend/supernova_2177_ui_weighted/docker-compose.yml`
+  remains retained under `NESTED_LEGACY_SURFACES_AUDIT.md` gates.
+- `super-nova-2177/backend/supernova_2177_ui_weighted/backend/docker-compose.yml`
+  remains retained under `NESTED_LEGACY_SURFACES_AUDIT.md` gates.
 
 ## Node Lockfiles Inside Backend Or Module Trees
 
