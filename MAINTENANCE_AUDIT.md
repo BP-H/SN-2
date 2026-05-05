@@ -71,6 +71,13 @@ and API-route audit. The audit is now captured in
 manual Vercel/project-root verification confirms the folder's app and `/api/*`
 handlers are not deployed.
 
+Nested legacy surfaces under
+`super-nova-2177/backend/supernova_2177_ui_weighted/` were audited in
+`NESTED_LEGACY_SURFACES_AUDIT.md`. `nova-web`, `nova-api`, and
+`transcendental_resonance_frontend` remain retained because they have package,
+Docker/API, import, wrapper, install, or test dependencies. Protected core files
+remain untouched.
+
 ## Generated Or Local Artifact Candidates
 
 These should stay ignored where possible. If already tracked, remove only in a separate cleanup branch after confirming production and local workflows do not depend on them.
