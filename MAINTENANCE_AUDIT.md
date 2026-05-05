@@ -56,6 +56,13 @@ verification. The audit is captured in `FRONTEND_NEXT_DEPLOYMENT_AUDIT.md`;
 source deletion remains deferred until manual Vercel/project-root verification
 confirms it is not deployed.
 
+`super-nova-2177/frontend-social-six/` remains in the tree with runnable local
+launcher support intact because it has Supabase auth dependencies, a standalone
+Dockerfile, social auth setup docs, and an `app/api/ai` route. The audit is
+captured in `FRONTEND_SOCIAL_SIX_AUTH_AUDIT.md`; launcher retirement and source
+deletion remain deferred until manual Supabase/Vercel/Railway verification
+confirms the provider-auth flow is inactive.
+
 `super-nova-2177/frontend-vite-3d/` remains in the tree because it has package
 self-references, its own `vercel.json`, and prior API-route/deployment notes.
 Its runnable local launcher paths were retired pending a dedicated deployment

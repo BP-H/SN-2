@@ -4,6 +4,9 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Added an auth/deployment audit for retained `frontend-social-six` and
+  deferred launcher retirement or source deletion until external
+  Supabase/Vercel/Railway references are manually verified.
 - Retired runnable local launcher support for the deployment/auth-sensitive
   `frontend-next` legacy frontend while keeping its source folder for manual
   deployment/project-root verification.

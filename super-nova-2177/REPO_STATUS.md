@@ -27,7 +27,7 @@ When `DATABASE_URL` is not set locally, the backend wrapper should use `supernov
 
 These folders may contain useful experiments, references, or older frontend variants, but they are not the primary production path right now.
 
-- `frontend-social-six`
+- `frontend-social-six` (source and launcher retained pending auth/deployment verification)
 - `frontend-next` (source retained; local launcher retired pending deployment/auth/security audit)
 - `frontend-vite-basic`
 - `frontend-vite-3d`
@@ -41,7 +41,7 @@ These folders may contain useful experiments, references, or older frontend vari
 - The only active/default frontend is `frontend-social-seven`.
 - The active backend is `backend/app.py`.
 - The Railway compatibility entrypoint is `app.py`.
-- Local launchers should keep `frontend-social-seven` as the active/default FE7 path. `frontend-nova` and `frontend-professional` were deleted after launcher retirement and fresh reference checks; restore either only by reverting its deletion PR. `frontend-vite-3d` source is still present, but its runnable local launcher support has been retired. Its deployment/API-route audit is documented in `../FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`. `frontend-next` source is still present, but its runnable local launcher support has been retired pending deployment/auth/security verification documented in `../FRONTEND_NEXT_DEPLOYMENT_AUDIT.md`.
+- Local launchers should keep `frontend-social-seven` as the active/default FE7 path. `frontend-nova` and `frontend-professional` were deleted after launcher retirement and fresh reference checks; restore either only by reverting its deletion PR. `frontend-vite-3d` source is still present, but its runnable local launcher support has been retired. Its deployment/API-route audit is documented in `../FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`. `frontend-next` source is still present, but its runnable local launcher support has been retired pending deployment/auth/security verification documented in `../FRONTEND_NEXT_DEPLOYMENT_AUDIT.md`. `frontend-social-six` source and launcher support remain intact pending auth/deployment verification documented in `../FRONTEND_SOCIAL_SIX_AUTH_AUDIT.md`.
 - All other top-level frontend folders are legacy/off-path unless a future PR explicitly promotes one after reference, package, and deployment checks.
 - `backend/supernova_2177_ui_weighted/supernovacore.py` is protected core. Do not edit, move, rename, delete, reformat, or copy its logic during cleanup.
 - Legacy folders are eligible for staged cleanup only after reference checks for package files, deployment config, Dockerfiles, README/docs, scripts, imports, and CI/workflows.

@@ -32,6 +32,11 @@ This is a read-only inventory. It is not approval to delete anything from `maste
   Dockerfile path, Supabase auth dependencies, and `/api/ai` handler are not
   deployed. The local repo audit is recorded in
   `FRONTEND_NEXT_DEPLOYMENT_AUDIT.md`.
+- `super-nova-2177/frontend-social-six` was audited as auth-history-sensitive;
+  source and runnable local launcher support remain intact until manual
+  Supabase/Vercel/Railway verification proves its provider-auth flow,
+  Dockerfile path, and `/api/ai` handler are inactive. The local repo audit is
+  recorded in `FRONTEND_SOCIAL_SIX_AUTH_AUDIT.md`.
 
 ## Legacy Or Experimental Frontend Trees
 

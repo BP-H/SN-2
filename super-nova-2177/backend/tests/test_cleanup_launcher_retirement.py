@@ -84,6 +84,30 @@ class CleanupLauncherRetirementTests(unittest.TestCase):
         self.assertIn("Supabase auth", audit)
         self.assertIn("manual Vercel/project-root", audit)
 
+    def test_frontend_social_six_auth_audit_defers_launcher_retirement(self):
+        self.assertTrue((APP_ROOT / "frontend-social-six").is_dir())
+        self.assertTrue((APP_ROOT / "start_frontend_social_six.ps1").exists())
+
+        run_local = (APP_ROOT / "run_local.py").read_text(encoding="utf-8")
+        self.assertIn('"social-six": {', run_local)
+        self.assertIn("frontend-social-six", run_local)
+
+        launcher = (APP_ROOT / "start_supernova.ps1").read_text(encoding="utf-8")
+        self.assertIn('"6" = "frontend-social-six"', launcher)
+        self.assertIn('"frontend-social-six" = 3001', launcher)
+
+        repo_status = (APP_ROOT / "REPO_STATUS.md").read_text(encoding="utf-8")
+        self.assertIn("Active social frontend: `frontend-social-seven`", repo_status)
+        self.assertIn("frontend-social-six` (source and launcher retained", repo_status)
+
+        audit = (ROOT / "FRONTEND_SOCIAL_SIX_AUTH_AUDIT.md").read_text(encoding="utf-8")
+        self.assertIn("Launcher retirement and source deletion are deferred", audit)
+        self.assertIn("Supabase auth", audit)
+        self.assertIn("SOCIAL_AUTH_SETUP.md", audit)
+        self.assertIn("app/api/ai", audit)
+        self.assertIn("Manual Vercel", audit)
+        self.assertIn("Railway", audit)
+
 
 if __name__ == "__main__":
     unittest.main()
