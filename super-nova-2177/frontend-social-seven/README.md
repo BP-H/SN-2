@@ -71,6 +71,34 @@ Before pushing frontend changes:
 npm run build
 ```
 
+## Advisory E2E Smoke
+
+The active FE7 app has a minimal Playwright smoke scaffold for public,
+signed-out routes. It is advisory for now and is not a required branch
+protection check.
+
+From this folder:
+
+```powershell
+npm install
+npx playwright install chromium
+npm run test:e2e
+```
+
+By default the Playwright config starts `next dev` and tests
+`http://127.0.0.1:3007`. If that port is busy, set `PLAYWRIGHT_PORT` before
+running the smoke. To test an already-running local or preview server:
+
+```powershell
+$env:PLAYWRIGHT_BASE_URL = "http://127.0.0.1:3007"
+$env:PLAYWRIGHT_SKIP_WEB_SERVER = "1"
+npm run test:e2e
+```
+
+The first smoke spec mocks the public backend reads needed by the signed-out
+home/feed shell, so a live production backend is not required. A local backend
+is still useful for broader manual smoke beyond this minimal scaffold.
+
 ## Contributor Notes
 
 - Keep mobile behavior stable; it is the known-good baseline.
