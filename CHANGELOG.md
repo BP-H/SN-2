@@ -4,6 +4,9 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Retired runnable local launcher support for the deployment/auth-sensitive
+  `frontend-next` legacy frontend while keeping its source folder for manual
+  deployment/project-root verification.
 - Added a deployment/API-route audit for retained `frontend-vite-3d` and
   deferred source deletion until manual Vercel/project-root verification proves
   its Vite app and `/api/*` handlers are inactive.

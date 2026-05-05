@@ -23,7 +23,6 @@ python run_local.py --backend-only
 Start a specific frontend:
 
 ```bash
-python run_local.py --frontend next
 python run_local.py --frontend vite-basic
 python run_local.py --frontend social-seven
 ```
@@ -37,13 +36,14 @@ python run_local.py --frontend social-seven
 ## Default local ports
 
 - `backend`: `8000`
-- `next`: `3000`
 - `vite-basic`: `5174`
 - `social-six`: `3001`
 - `social-seven`: `3007`
 
-`frontend-nova`, `frontend-professional`, and `frontend-vite-3d` local launcher
-targets are retired/off-path. Use `social-seven` for the active frontend.
+`frontend-nova`, `frontend-professional`, `frontend-vite-3d`, and
+`frontend-next` local launcher targets are retired/off-path. Use `social-seven`
+for the active frontend. The `frontend-next` source folder remains in the repo
+for deployment/auth/security assessment and is not an active local launcher.
 
 ## Requirements
 

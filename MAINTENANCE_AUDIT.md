@@ -49,6 +49,13 @@ workflow, or runtime dependency.
 launcher paths were retired and fresh reference checks confirmed no active
 package, deployment, workflow, runtime, or local launcher dependency.
 
+`super-nova-2177/frontend-next/` remains in the tree because it has a standalone
+Next package, Dockerfile, Supabase dependencies, and an `app/api/ai` route. Its
+runnable local launcher paths were retired pending deployment/auth/security
+verification. The audit is captured in `FRONTEND_NEXT_DEPLOYMENT_AUDIT.md`;
+source deletion remains deferred until manual Vercel/project-root verification
+confirms it is not deployed.
+
 `super-nova-2177/frontend-vite-3d/` remains in the tree because it has package
 self-references, its own `vercel.json`, and prior API-route/deployment notes.
 Its runnable local launcher paths were retired pending a dedicated deployment

@@ -56,6 +56,34 @@ class CleanupLauncherRetirementTests(unittest.TestCase):
         self.assertIn("manual Vercel/project-root", audit)
         self.assertIn("verification", audit)
 
+    def test_frontend_next_launcher_is_retired_without_source_deletion(self):
+        self.assertTrue((APP_ROOT / "frontend-next").is_dir())
+        self.assertFalse((APP_ROOT / "start_frontend_next.ps1").exists())
+
+        run_local = (APP_ROOT / "run_local.py").read_text(encoding="utf-8")
+        self.assertNotIn('"next": {', run_local)
+        self.assertNotIn("frontend-next", run_local)
+
+        launcher = (APP_ROOT / "start_supernova.ps1").read_text(encoding="utf-8")
+        self.assertIn('"1" = "__retired_frontend_next"', launcher)
+        self.assertIn("frontend-next local launchers were retired", launcher)
+        self.assertNotIn('"frontend-next" = 3000', launcher)
+
+        repo_status = (APP_ROOT / "REPO_STATUS.md").read_text(encoding="utf-8")
+        self.assertIn("Active social frontend: `frontend-social-seven`", repo_status)
+        self.assertIn("The only active/default frontend is `frontend-social-seven`", repo_status)
+
+        roadmap = (ROOT / "LEGACY_CLEANUP_ROADMAP.md").read_text(encoding="utf-8")
+        self.assertIn("frontend-next` | Source retained; runnable local launcher support retired", roadmap)
+        self.assertIn("super-nova-2177/backend/supernova_2177_ui_weighted/supernovacore.py", roadmap)
+
+        audit = (ROOT / "FRONTEND_NEXT_DEPLOYMENT_AUDIT.md").read_text(encoding="utf-8")
+        self.assertIn("Deletion is deferred", audit)
+        self.assertIn("Dockerfile", audit)
+        self.assertIn("app/api/ai", audit)
+        self.assertIn("Supabase auth", audit)
+        self.assertIn("manual Vercel/project-root", audit)
+
 
 if __name__ == "__main__":
     unittest.main()
