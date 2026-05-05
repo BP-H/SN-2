@@ -5,6 +5,38 @@ behavior. It is intentionally conservative: route paths, response shapes, auth c
 rate-limit buckets, database schema, frontend behavior, AI behavior, and SuperNova Core
 semantics must stay unchanged during each extraction.
 
+## Alpha Readiness Checkpoint
+
+The router split sprint has extracted these low-risk route boundaries while
+leaving high-risk helper implementations in place where needed:
+
+- Status/health routes are extracted to `backend/status_routes.py`.
+- Commons rate limiting is extracted to `backend/commons_rate_limits.py`.
+- Messages routes are extracted to `backend/routers/messages.py`.
+- Upload/media route wrappers are extracted to `backend/routers/uploads.py`.
+- Social graph/follows route wrappers are extracted to
+  `backend/routers/social_graph.py`.
+- AI delegate/profile route wrappers are extracted to
+  `backend/routers/ai_delegates.py`.
+- AI read-only review route wrappers are extracted to
+  `backend/routers/ai_readonly.py`.
+- AI Actions draft/list/cancel route wrappers are extracted to
+  `backend/routers/ai_actions.py`.
+- AI Actions approval/publishing route wrappers are extracted to
+  `backend/routers/ai_action_approvals.py`.
+- Proposal/post route registration is extracted to
+  `backend/routers/proposals.py`; helper implementations remain in `app.py`.
+- Comment/comment-vote route registration is extracted to
+  `backend/routers/comments.py`; helper implementations remain in `app.py`.
+- System vote route registration is extracted to
+  `backend/routers/system_votes.py`; vote math and species helpers remain in
+  `app.py`.
+
+Deeper helper extraction is intentionally deferred until broader response
+snapshots, username-alias regressions, media/comment E2E coverage, and
+AI-approved publication refresh checks exist. Do not move proposal, comment, or
+vote helpers merely to reduce `app.py` line count.
+
 ## Already Extracted
 
 ### Status / Health
