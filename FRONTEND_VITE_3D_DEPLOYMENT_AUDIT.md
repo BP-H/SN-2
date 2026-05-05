@@ -12,6 +12,55 @@ This PR is audit-only for the source folder. It does not change runtime
 behavior, frontend UI, backend routes, deployment settings, uploads, DB files,
 or protected core.
 
+## 2026-05-05 Deletion Gate Recheck
+
+Deletion remains blocked. The prompt and repository do not contain explicit
+manual external deployment verification proving that `frontend-vite-3d` is safe
+to delete.
+
+Repo-local checks were repeated:
+
+- `git grep -n "frontend-vite-3d" -- .`
+- `git grep -n "vite-3d" -- .`
+- `.github/workflows` search
+- Vercel/Railway/Docker/Compose/deployment-file search
+- package-file and lockfile search
+- script and launcher search
+- docs/status-file search
+- `python super-nova-2177/run_local.py --list-frontends`
+- `start_supernova.ps1` inspection
+- `frontend-vite-3d/vercel.json` inspection
+- `frontend-vite-3d/api/` inspection
+
+Current repo-local findings:
+
+- `run_local.py --list-frontends` no longer exposes `vite-3d`.
+- `start_supernova.ps1` option 3 is a retired handoff to Social Seven.
+- No GitHub Actions workflow points to `frontend-vite-3d`.
+- No deployment config outside the retained folder points to
+  `frontend-vite-3d`.
+- The retained folder still contains `vercel.json`, `package.json`,
+  `package-lock.json`, and Vercel-style `api/` handlers.
+- Remaining references outside the retained folder are cleanup/status docs,
+  static cleanup tests, and retired-launcher handoff text.
+
+Missing external verification:
+
+- No Vercel dashboard/API evidence proves that no active project root points to
+  `super-nova-2177/frontend-vite-3d`.
+- No Vercel dashboard/API evidence proves that no active deployment exposes its
+  `/api/*` handlers.
+- No DNS/domain evidence proves that no domain points at a deployment built from
+  this folder.
+- No environment-variable audit proves that no env var set exists solely for
+  the folder's OpenAI helper endpoints.
+- No external smoke/manual QA evidence proves that no flow depends on the Vite
+  3D app or its API routes.
+
+Result: do not delete `super-nova-2177/frontend-vite-3d/` yet. A later deletion
+PR must include the missing external evidence above, then rerun fresh repo
+reference checks and safety checks.
+
 ## Local Reference Checks
 
 Required checks performed:

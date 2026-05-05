@@ -70,6 +70,13 @@ class CleanupLauncherRetirementTests(unittest.TestCase):
         self.assertIn("api/ Audit", audit)
         self.assertIn("manual Vercel/project-root", audit)
         self.assertIn("verification", audit)
+        self.assertIn("2026-05-05 Deletion Gate Recheck", audit)
+        self.assertIn("Deletion remains blocked", audit)
+        self.assertIn("Missing external verification", audit)
+        self.assertIn("No Vercel dashboard/API evidence", audit)
+        self.assertIn("No DNS/domain evidence", audit)
+        self.assertIn("No environment-variable audit", audit)
+        self.assertIn("No external smoke/manual QA evidence", audit)
 
     def test_frontend_next_launcher_is_retired_without_source_deletion(self):
         self.assertTrue((APP_ROOT / "frontend-next").is_dir())

@@ -34,7 +34,9 @@ Completed entries are history, not active cleanup candidates.
   retired; the source folder remains a deployment-sensitive cleanup candidate
   until manual Vercel/project-root verification proves its Vite app and
   Vercel-style `/api/*` handlers are not deployed. The local repo audit is
-  recorded in `FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`.
+  recorded in `FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`. A 2026-05-05 deletion
+  gate recheck found no explicit external Vercel/DNS/env/manual-smoke evidence,
+  so deletion remains blocked.
 - `super-nova-2177/frontend-next` runnable local launcher support was retired;
   the source folder remains a deployment/auth/security-sensitive cleanup
   candidate until manual Vercel/project-root verification proves its Next app,

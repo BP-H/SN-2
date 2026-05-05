@@ -73,7 +73,8 @@ Its runnable local launcher paths were retired pending a dedicated deployment
 and API-route audit. The audit is now captured in
 `FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`; source deletion remains deferred until
 manual Vercel/project-root verification confirms the folder's app and `/api/*`
-handlers are not deployed.
+handlers are not deployed. A 2026-05-05 deletion gate recheck found no explicit
+external Vercel/DNS/env/manual-smoke evidence, so the folder remains retained.
 
 Nested legacy surfaces under
 `super-nova-2177/backend/supernova_2177_ui_weighted/` were audited in

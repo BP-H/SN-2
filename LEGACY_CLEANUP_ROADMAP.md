@@ -124,8 +124,9 @@ config.
    dependency.
 7. `frontend-vite-3d` launcher retirement PR: completed; source folder is still
    retained. Dedicated deployment/API audit is documented in
-   `FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`, and deletion remains deferred until
-   manual Vercel/project-root verification proves it safe.
+   `FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`. A 2026-05-05 deletion gate recheck
+   found no explicit external Vercel/DNS/env/manual-smoke evidence, so deletion
+   remains deferred until manual verification proves it safe.
 8. `frontend-next` launcher retirement PR: completed; source folder is still
    retained. Dedicated deployment/auth/security audit is documented in
    `FRONTEND_NEXT_DEPLOYMENT_AUDIT.md`, and deletion remains deferred until
