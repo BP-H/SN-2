@@ -53,6 +53,11 @@ This is a read-only inventory. It is not approval to delete anything from `maste
 - `super-nova-2177/backend/supernova_2177_ui_weighted/backend/docker-compose.yml`
 - `super-nova-2177/backend/supernova_2177_ui_weighted/backend/requirements.txt`
 
+Nested legacy surfaces under `backend/supernova_2177_ui_weighted/` were audited
+in `NESTED_LEGACY_SURFACES_AUDIT.md`. `nova-web`, `nova-api`, and
+`transcendental_resonance_frontend` remain retained; deletion is deferred until
+deployment/import/test gates are satisfied.
+
 ## Node Lockfiles Inside Backend Or Module Trees
 
 - `super-nova-2177/backend/supernova_2177_ui_weighted/nova-web/package-lock.json`

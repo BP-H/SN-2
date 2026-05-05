@@ -31,9 +31,9 @@ These folders may contain useful experiments, references, or older frontend vari
 - `frontend-next` (source retained; local launcher retired pending deployment/auth/security audit)
 - `frontend-vite-basic`
 - `frontend-vite-3d`
-- `backend/supernova_2177_ui_weighted/nova-web`
-- `backend/supernova_2177_ui_weighted/nova-api`
-- `backend/supernova_2177_ui_weighted/transcendental_resonance_frontend`
+- `backend/supernova_2177_ui_weighted/nova-web` (retained; nested legacy audit required before cleanup)
+- `backend/supernova_2177_ui_weighted/nova-api` (retained; nested legacy audit required before cleanup)
+- `backend/supernova_2177_ui_weighted/transcendental_resonance_frontend` (retained; import/wrapper/test-sensitive)
 - Root `docker-compose.yml` frontend service, which references an older `./frontend` path and should be treated as local legacy until updated deliberately.
 
 ## Cleanup Policy
@@ -44,6 +44,7 @@ These folders may contain useful experiments, references, or older frontend vari
 - Local launchers should keep `frontend-social-seven` as the active/default FE7 path. `frontend-nova` and `frontend-professional` were deleted after launcher retirement and fresh reference checks; restore either only by reverting its deletion PR. `frontend-vite-3d` source is still present, but its runnable local launcher support has been retired. Its deployment/API-route audit is documented in `../FRONTEND_VITE_3D_DEPLOYMENT_AUDIT.md`. `frontend-next` source is still present, but its runnable local launcher support has been retired pending deployment/auth/security verification documented in `../FRONTEND_NEXT_DEPLOYMENT_AUDIT.md`. `frontend-social-six` source and launcher support remain intact pending auth/deployment verification documented in `../FRONTEND_SOCIAL_SIX_AUTH_AUDIT.md`.
 - All other top-level frontend folders are legacy/off-path unless a future PR explicitly promotes one after reference, package, and deployment checks.
 - `backend/supernova_2177_ui_weighted/supernovacore.py` is protected core. Do not edit, move, rename, delete, reformat, or copy its logic during cleanup.
+- Nested legacy surfaces under `backend/supernova_2177_ui_weighted/` are documented in `../NESTED_LEGACY_SURFACES_AUDIT.md`; do not delete `nova-web`, `nova-api`, or `transcendental_resonance_frontend` without satisfying the audit gates.
 - Legacy folders are eligible for staged cleanup only after reference checks for package files, deployment config, Dockerfiles, README/docs, scripts, imports, and CI/workflows.
 - Do not delete legacy source folders in broad mixed cleanup PRs. Prefer one target folder or one generated-artifact class per deletion PR.
 - If a legacy folder is referenced by local launchers, update or retire those launcher references in the same explicit cleanup PR before deletion.

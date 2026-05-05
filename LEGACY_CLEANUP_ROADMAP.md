@@ -81,9 +81,9 @@ Additional checks:
 | `super-nova-2177/frontend-social-six` | Source and launchers retained. Dedicated auth/deployment audit found a standalone Next package, Dockerfile, Supabase auth dependencies, `SOCIAL_AUTH_SETUP.md`, and an `app/api/ai` route. Local repo checks found no active workflow or external deploy config pointing to it, but Supabase/Vercel/Railway settings were not manually verified. | Auth-history-sensitive legacy social frontend with active local launcher. | Defer launcher retirement and source deletion until manual Supabase/Vercel/Railway verification confirms the provider-auth flow, Dockerfile path, and `/api/ai` handler are inactive. |
 | `super-nova-2177/frontend-vite-basic` | Referenced by cleanup docs, launcher scripts, `scripts/check_safe.py`, and protected `frontend-vite-basic/supernovacore.py` zero-diff checks. | Protected-core-sensitive. | Do not touch in early cleanup; any removal needs a separate protected-core-safe plan. |
 | `super-nova-2177/frontend-vite-3d` | Source retained; runnable local launcher support retired after fresh checks. Dedicated deployment/API audit found a standalone Vite package, `vercel.json`, and Vercel-style `api/` handlers. Local repo checks found no active workflow or external deploy config pointing to it, but Vercel project-root settings were not manually verified. | Deployment/API-sensitive; no active launcher. | Defer source deletion until manual Vercel/project-root verification confirms the folder and `/api/*` handlers are not deployed. |
-| `super-nova-2177/backend/supernova_2177_ui_weighted/nova-web` | Referenced by nested cleanup/security docs, `REPO_STATUS.md`, package/lockfile files, Next config, internal comments, and universe docs. | Nested legacy app and dependency-sensitive. | Keep under nested backend/lockfile cleanup plan. |
-| `super-nova-2177/backend/supernova_2177_ui_weighted/nova-api` | Referenced by `REPO_STATUS.md` and its own `index.py`. | Low visible reference count, but nested backend-sensitive. | Assess with nested backend cleanup, not frontend cleanup. |
-| `super-nova-2177/backend/supernova_2177_ui_weighted/transcendental_resonance_frontend` | Referenced by `REPO_STATUS.md`, many nested docs, install scripts, utility imports, compatibility wrappers, and tests. | Do not touch. Active legacy Python UI package. | Do not delete or rename without a compatibility and test audit. |
+| `super-nova-2177/backend/supernova_2177_ui_weighted/nova-web` | Dedicated nested-surface audit found a standalone Next app with package/lock/config files, API stubs, app routes, and universe docs references. | Nested legacy app; dependency/security/deployment-sensitive. | Keep retained until manual deployment checks, dependency strategy, and universe UI preservation decisions are complete. See `NESTED_LEGACY_SURFACES_AUDIT.md`. |
+| `super-nova-2177/backend/supernova_2177_ui_weighted/nova-api` | Dedicated nested-surface audit found a small standalone FastAPI service with Dockerfile and sample `/api`, `/healthz`, and `/feed` routes. | Low visible reference count, but nested backend/deployment-sensitive. | Keep retained until manual deployment checks confirm no project root or Docker/Railway path uses it. See `NESTED_LEGACY_SURFACES_AUDIT.md`. |
+| `super-nova-2177/backend/supernova_2177_ui_weighted/transcendental_resonance_frontend` | Dedicated nested-surface audit found a NiceGUI/Python UI package with install scripts, compatibility wrappers, imports, docs, and many tests. | High cleanup risk legacy Python UI package. | Do not delete, rename, or move without an import/wrapper/test migration plan. See `NESTED_LEGACY_SURFACES_AUDIT.md`. |
 
 ## Generated Artifact Findings
 
@@ -125,7 +125,9 @@ config.
    launchers are still retained. Audit is documented in
    `FRONTEND_SOCIAL_SIX_AUTH_AUDIT.md`, and launcher retirement remains
    deferred until manual Supabase/Vercel/Railway verification proves it safe.
-10. Separate assessments for nested `nova-web` and nested `nova-api`.
+10. Nested legacy surfaces audit: completed. `nova-web`, `nova-api`, and
+    `transcendental_resonance_frontend` remain retained; future cleanup requires
+    the gates in `NESTED_LEGACY_SURFACES_AUDIT.md`.
 11. Do not schedule `frontend-vite-basic` removal until the protected duplicate
    core file and safe-check contract have a dedicated plan.
 12. Do not schedule `transcendental_resonance_frontend` removal until imports,

@@ -4,6 +4,10 @@ All notable public protocol, safety, and contributor-facing changes are summariz
 
 ## Unreleased
 
+- Added an audit for nested legacy surfaces under
+  `backend/supernova_2177_ui_weighted/`, documenting why `nova-web`,
+  `nova-api`, and `transcendental_resonance_frontend` require separate cleanup
+  gates and why protected core remains untouched.
 - Added an auth/deployment audit for retained `frontend-social-six` and
   deferred launcher retirement or source deletion until external
   Supabase/Vercel/Railway references are manually verified.
