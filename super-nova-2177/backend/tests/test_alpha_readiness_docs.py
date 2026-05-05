@@ -125,6 +125,25 @@ class AlphaReadinessDocsTests(unittest.TestCase):
         ]:
             self.assertIn(expected, signoff)
 
+    def test_current_alpha_smoke_signoff_records_only_observed_evidence(self):
+        signoff = (REPO_ROOT / "ALPHA_SMOKE_SIGNOFF_2026-05-05.md").read_text(
+            encoding="utf-8"
+        )
+
+        for expected in [
+            "dddc03f43288c91fa2c559f65da37bbad948682a",
+            "Automated Evidence",
+            "PASS, `PLAYWRIGHT_PORT=3017 npm run test:e2e`",
+            "SKIPPED; no backend was available",
+            "Manual Smoke Rows",
+            "NOT RUN",
+            "No manual browser smoke evidence was provided",
+            "BLOCKED - automated guardrails passed",
+            "Branch protection has not been verified as enabled",
+            "cannot be reconstructed by app code alone",
+        ]:
+            self.assertIn(expected, signoff)
+
 
 if __name__ == "__main__":
     unittest.main()
