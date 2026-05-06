@@ -4,6 +4,9 @@ Use this before an SN-2 alpha deployment, preview promotion, or SN-1 branch sync
 The goal is to prevent deployment/environment drift from looking like product
 bugs, especially around uploaded images.
 
+Pair this with `DATA_PRESERVATION_PREFLIGHT.md` before release promotion or any
+future SN-1 sync preview.
+
 ## Active Deployment Roots
 
 - Active FE7 deploy root: `super-nova-2177/frontend-social-seven`
@@ -64,6 +67,12 @@ After deploy:
 3. Confirm `data:image/...` entries remain data URLs and are not prefixed with
    the backend origin.
 4. Upload one fresh image, refresh feed/detail, and confirm it still renders.
+
+For a structured read-only snapshot, run:
+
+```powershell
+python scripts/public_data_snapshot.py <backend-url>
+```
 
 ## Rollback
 

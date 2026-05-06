@@ -76,7 +76,8 @@ the workflows are stable enough to avoid noisy blocking failures.
 
 ## Deployment And Media Preflight
 
-Before promoting a deployment, complete `DEPLOYMENT_MEDIA_PREFLIGHT.md`.
+Before promoting a deployment, complete `DEPLOYMENT_MEDIA_PREFLIGHT.md` and
+`DATA_PRESERVATION_PREFLIGHT.md`.
 
 Release-critical points:
 
@@ -90,6 +91,10 @@ Release-critical points:
 - Old missing upload files cannot be reconstructed unless bytes are restored
   from source files, backups, or durable storage.
 - Sample `/proposals` image URLs before and after deploy.
+- Take database and upload/media backups before release deploys or any future
+  SN-1 branch-sync preview.
+- Use `scripts/public_data_snapshot.py <backend-url>` to compare public
+  proposal samples before and after deploy.
 
 ## Rollback Gate
 
