@@ -3,6 +3,8 @@
 Copy this file into a dated signoff note for the release candidate. Keep rows
 `NOT RUN` until a human actually clicks through the flow in a browser.
 
+For the short execution order, use `ALPHA_RELEASE_SMOKE_EXECUTION_PACK.md`.
+
 ## Candidate
 
 - Commit SHA:
@@ -32,6 +34,8 @@ Use `PASS`, `FAIL`, `BLOCKED`, or `NOT RUN`.
 | Upload image and confirm it renders after refresh | NOT RUN |  |  |
 | Existing `/uploads/...` image still renders when bytes exist | NOT RUN |  |  |
 | Old missing upload file recorded as unrecoverable without bytes/backups | NOT RUN |  |  |
+| Public data snapshot captured before deploy/preview | NOT RUN | `python scripts/public_data_snapshot.py <backend-url>` output saved outside git. |  |
+| Public data snapshot captured after deploy/preview and compared | NOT RUN | Compare proposal count, IDs/titles, and sampled media URLs. |  |
 | Create AI delegate through AI Genesis | NOT RUN |  |  |
 | Generate AI review draft | NOT RUN |  |  |
 | Approve AI review; one vote and rationale/comment publishes | NOT RUN |  |  |
@@ -45,6 +49,21 @@ Use `PASS`, `FAIL`, `BLOCKED`, or `NOT RUN`.
 | Mobile AI modal and delegate picker stay on-screen | NOT RUN |  |  |
 | `/health`, `/supernova-status`, and `/status` return stable JSON | NOT RUN |  |  |
 | Normal browsing does not hit rate limits | NOT RUN |  |  |
+
+## Owner Next Action
+
+- Run the rows above in a real browser; do not infer manual `PASS` from CI or
+  E2E.
+- Paste `PASS`, `FAIL`, `BLOCKED`, or `NOT RUN` notes back into the dated
+  signoff.
+- Enable branch protection manually only after confirming these exact required
+  checks are green and selectable:
+  - `Backend local deterministic checks`
+  - `FE7 local deterministic checks`
+- Keep SN-1 sync for later only, as a non-default branch first with preview
+  smoke and public data snapshot comparison.
+- Preserve `DATABASE_URL`, `UPLOADS_DIR` or durable media storage, and
+  `NEXT_PUBLIC_API_URL`.
 
 ## Known Issues
 

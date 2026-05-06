@@ -42,7 +42,8 @@ record the exact reason and run it as soon as the network path is available.
 
 Manual smoke is a release gate. Use
 `ALPHA_MANUAL_SMOKE_EVIDENCE_SHEET.md` or a dated copy of
-`ALPHA_SMOKE_SIGNOFF_TEMPLATE.md`.
+`ALPHA_SMOKE_SIGNOFF_TEMPLATE.md`. For a concise execution order, use
+`ALPHA_RELEASE_SMOKE_EXECUTION_PACK.md`.
 
 Rows stay `NOT RUN` until a human actually clicks through the browser flow.
 Automated E2E, backend probes, or screenshots from older candidates do not

@@ -60,7 +60,8 @@ Manual browser smoke status remains `NOT RUN`. Automated checks, static
 inspection, backend probes, and E2E do not convert manual rows to `PASS`.
 
 Use `ALPHA_MANUAL_SMOKE_EVIDENCE_SHEET.md` or a dated copy of
-`ALPHA_SMOKE_SIGNOFF_TEMPLATE.md` for human-clicked evidence.
+`ALPHA_SMOKE_SIGNOFF_TEMPLATE.md` for human-clicked evidence. Use
+`ALPHA_RELEASE_SMOKE_EXECUTION_PACK.md` for the short execution order.
 
 ## Data Preservation
 

@@ -165,6 +165,9 @@ class AlphaReadinessDocsTests(unittest.TestCase):
         evidence = (REPO_ROOT / "ALPHA_MANUAL_SMOKE_EVIDENCE_SHEET.md").read_text(
             encoding="utf-8"
         )
+        execution_pack = (REPO_ROOT / "ALPHA_RELEASE_SMOKE_EXECUTION_PACK.md").read_text(
+            encoding="utf-8"
+        )
         preflight = (REPO_ROOT / "DEPLOYMENT_MEDIA_PREFLIGHT.md").read_text(encoding="utf-8")
         branch = (REPO_ROOT / "BRANCH_PROTECTION_ROLLOUT_STATUS.md").read_text(
             encoding="utf-8"
@@ -183,6 +186,7 @@ class AlphaReadinessDocsTests(unittest.TestCase):
             "Backend local deterministic checks",
             "FE7 local deterministic checks",
             "DEPLOYMENT_MEDIA_PREFLIGHT.md",
+            "ALPHA_RELEASE_SMOKE_EXECUTION_PACK.md",
             "NEXT_PUBLIC_API_URL",
             "UPLOADS_DIR",
             "Rollback Gate",
@@ -199,8 +203,32 @@ class AlphaReadinessDocsTests(unittest.TestCase):
             "Create AI delegate",
             "Approve AI review",
             "Mobile AI modal",
+            "Public data snapshot captured before deploy/preview",
+            "Public data snapshot captured after deploy/preview and compared",
+            "Owner Next Action",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
         ]:
             self.assertIn(expected, evidence)
+
+        for expected in [
+            "Alpha Release Smoke Execution Pack",
+            "No human-clicked smoke evidence was present",
+            "Owner Next Action",
+            "python scripts/public_data_snapshot.py <backend-url>",
+            "npm run dev",
+            "npm run test:e2e",
+            "npm run test:e2e:real",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
+            "SN-1 sync",
+            "non-default-branch-first",
+            "Preserve `DATABASE_URL`",
+            "UPLOADS_DIR",
+            "NEXT_PUBLIC_API_URL",
+            "Stop Conditions",
+        ]:
+            self.assertIn(expected, execution_pack)
 
         for expected in [
             "super-nova-2177/frontend-social-seven",
