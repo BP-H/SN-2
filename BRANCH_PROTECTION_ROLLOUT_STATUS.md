@@ -61,6 +61,14 @@ GitHub connector tools do not expose branch protection or repository ruleset
 mutation. The remaining action is still manual GitHub settings setup with the
 two checks above.
 
+## 2026-05-06 Post-PR72 Recheck
+
+After PR #72 merged and while the owner was manually enabling branch protection,
+the public GitHub branch metadata for `BP-H/SN-2` `master` was checked again.
+It still reported `protected: false`, required status check enforcement `off`,
+and no required checks visible in the branch metadata. Do not claim branch
+protection is enabled until GitHub settings or branch metadata confirms it.
+
 For an alpha release, the two checks above are the only recommended required
 branch checks. Mocked Playwright, real-backend Playwright, full live/network
 smoke, and deployment smoke should remain release evidence and advisory checks,

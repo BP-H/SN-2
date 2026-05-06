@@ -388,6 +388,7 @@ class AlphaReadinessDocsTests(unittest.TestCase):
 
         for expected in [
             "2026-05-06 Verification",
+            "2026-05-06 Post-PR72 Recheck",
             "protected: false",
             "required status check enforcement `off`",
             "gh` is not",
@@ -397,6 +398,40 @@ class AlphaReadinessDocsTests(unittest.TestCase):
             "FE7 local deterministic checks",
         ]:
             self.assertIn(expected, branch)
+
+    def test_preview_deploy_smoke_records_deploy_next_steps_without_claiming_protection(self):
+        deploy = (REPO_ROOT / "PREVIEW_DEPLOY_SMOKE_2026-05-06.md").read_text(
+            encoding="utf-8"
+        )
+
+        for expected in [
+            "Preview Deploy Smoke - 2026-05-06",
+            "protected: false",
+            "Required status checks enforcement: `off`",
+            "Preview/deploy URL: `NOT PROVIDED`",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
+            "super-nova-2177/frontend-social-seven",
+            "super-nova-2177/backend/app.py",
+            "super-nova-2177/app.py",
+            "NEXT_PUBLIC_API_URL",
+            "DATABASE_URL",
+            "UPLOADS_DIR",
+            "python scripts/public_data_snapshot.py <backend-url>",
+            "/proposals?filter=latest&limit=30",
+            "proposal sample count",
+            "sampled media URLs",
+            "data:image/...",
+            "signed-out feed renders",
+            "upload image and refresh",
+            "AI delegate create",
+            "AI review draft approve/cancel",
+            "No detailed manual rows were changed to `PASS`",
+            "SN-1 sync was not performed",
+            "Git does not carry DB rows",
+            "uploaded image bytes",
+        ]:
+            self.assertIn(expected, deploy)
 
 
 if __name__ == "__main__":
