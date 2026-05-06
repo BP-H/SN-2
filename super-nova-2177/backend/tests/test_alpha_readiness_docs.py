@@ -255,6 +255,26 @@ class AlphaReadinessDocsTests(unittest.TestCase):
         for forbidden in ["urlopen(request, data=", "Request(url, data=", "POST", "DELETE", "drop_all"]:
             self.assertNotIn(forbidden, helper)
 
+    def test_alpha_release_candidate_status_records_blocker_sweep(self):
+        status = (REPO_ROOT / "ALPHA_RELEASE_CANDIDATE_STATUS.md").read_text(encoding="utf-8")
+
+        for expected in [
+            "Alpha Release Candidate Status",
+            "master` after PR #67",
+            "super-nova-2177/frontend-social-seven",
+            "super-nova-2177/backend/app.py",
+            "No confirmed release-candidate blocker was found",
+            "Manual browser smoke status remains `NOT RUN`",
+            "DATA_PRESERVATION",
+            "DATABASE_URL",
+            "UPLOADS_DIR",
+            "NEXT_PUBLIC_API_URL",
+            "SN-1 sync was not performed",
+            "non-default branch",
+            "Do not declare final release `GO`",
+        ]:
+            self.assertIn(expected, status)
+
 
 if __name__ == "__main__":
     unittest.main()
