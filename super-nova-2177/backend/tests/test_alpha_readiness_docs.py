@@ -314,6 +314,44 @@ class AlphaReadinessDocsTests(unittest.TestCase):
         ]:
             self.assertIn(expected, status)
 
+    def test_alpha_release_signoff_checkpoint_records_owner_report_without_inventing_rows(self):
+        signoff = (REPO_ROOT / "ALPHA_RELEASE_SIGNOFF_2026-05-06.md").read_text(
+            encoding="utf-8"
+        )
+
+        for expected in [
+            "owner manually checked the app",
+            "functions seem to be working",
+            "OWNER-REPORTED / NOT ITEMIZED",
+            "No explicit row-level browser evidence was provided",
+            "Controlled alpha/preview `GO`",
+            "detailed manual smoke rows",
+            "Branch protection has not been verified as enabled",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
+            "super-nova-2177/frontend-social-seven",
+            "NEXT_PUBLIC_API_URL",
+            "DATABASE_URL",
+            "UPLOADS_DIR",
+            "scripts/public_data_snapshot.py",
+            "SN-1 sync was not performed",
+            "non-default-branch-first",
+            "Git does not carry DB rows",
+            "uploaded image bytes",
+        ]:
+            self.assertIn(expected, signoff)
+
+        detailed_rows = [
+            "Signed-out public feed renders",
+            "Sign in, reload, and sign out",
+            "Create a post or proposal",
+            "Upload image and confirm it renders after refresh",
+            "Create AI delegate through AI Genesis",
+            "Mobile AI modal and delegate picker stay on-screen",
+        ]
+        for row in detailed_rows:
+            self.assertIn(f"| {row} | NOT RUN |", signoff)
+
 
 if __name__ == "__main__":
     unittest.main()
