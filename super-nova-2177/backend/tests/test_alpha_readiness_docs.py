@@ -208,6 +208,53 @@ class AlphaReadinessDocsTests(unittest.TestCase):
         self.assertIn("enabled in GitHub settings", branch)
         self.assertIn("advisory checks", branch)
 
+    def test_data_preservation_docs_and_snapshot_helper_are_read_only(self):
+        preflight = (REPO_ROOT / "DATA_PRESERVATION_PREFLIGHT.md").read_text(encoding="utf-8")
+        sn1 = (REPO_ROOT / "SN1_SYNC_DATA_SAFETY_NOTE.md").read_text(encoding="utf-8")
+        release = (REPO_ROOT / "ALPHA_RELEASE_READINESS.md").read_text(encoding="utf-8")
+        media = (REPO_ROOT / "DEPLOYMENT_MEDIA_PREFLIGHT.md").read_text(encoding="utf-8")
+        helper = (REPO_ROOT / "scripts" / "public_data_snapshot.py").read_text(encoding="utf-8")
+
+        for expected in [
+            "Never run database reset",
+            "Preserve `DATABASE_URL`",
+            "Preserve `UPLOADS_DIR`",
+            "Preserve `NEXT_PUBLIC_API_URL`",
+            "runtime state, not git state",
+            "cannot be reconstructed",
+            "database backup",
+            "upload/media backup",
+            "/proposals?filter=latest&limit=30",
+            "No confirmed active production destructive reset path was found",
+        ]:
+            self.assertIn(expected, preflight)
+
+        for expected in [
+            "Do not merge SN-2 into SN-1 `master` directly",
+            "non-default branch",
+            "preview or staging",
+            "Git does not carry",
+            "Roll back the code deployment first",
+        ]:
+            self.assertIn(expected, sn1)
+
+        self.assertIn("DATA_PRESERVATION_PREFLIGHT.md", release)
+        self.assertIn("scripts/public_data_snapshot.py", release)
+        self.assertIn("DATA_PRESERVATION_PREFLIGHT.md", media)
+        self.assertIn("scripts/public_data_snapshot.py", media)
+
+        for expected in [
+            "/health",
+            "/supernova-status",
+            "/proposals?filter=latest&limit=30",
+            "urllib.request.urlopen",
+            "proposal_sample",
+        ]:
+            self.assertIn(expected, helper)
+
+        for forbidden in ["urlopen(request, data=", "Request(url, data=", "POST", "DELETE", "drop_all"]:
+            self.assertNotIn(forbidden, helper)
+
 
 if __name__ == "__main__":
     unittest.main()
