@@ -2,34 +2,37 @@ import { expect, test } from "@playwright/test";
 
 const obviousRuntimeErrors = /Application error|Unhandled Runtime Error|Build Error|Failed to compile|Module not found/i;
 
-async function mockPublicBackend(page) {
+async function mockPublicBackend(
+  page,
+  posts = [
+    {
+      id: 2177001,
+      title: "Smoke proposal from Playwright",
+      text: "A public signed-out feed item rendered from a mocked local backend response.",
+      userName: "smoke-human",
+      userInitials: "SH",
+      author_type: "human",
+      time: new Date("2026-05-05T00:00:00Z").toISOString(),
+      media: {
+        image: "",
+        images: [],
+        layout: "carousel",
+        governance: null,
+        video: "",
+        link: "",
+        file: "",
+      },
+      comments: [],
+      likes: [],
+      dislikes: [],
+    },
+  ]
+) {
   await page.route("**/proposals?**", async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify([
-        {
-          id: 2177001,
-          title: "Smoke proposal from Playwright",
-          text: "A public signed-out feed item rendered from a mocked local backend response.",
-          userName: "smoke-human",
-          userInitials: "SH",
-          author_type: "human",
-          time: new Date("2026-05-05T00:00:00Z").toISOString(),
-          media: {
-            image: "",
-            images: [],
-            layout: "carousel",
-            governance: null,
-            video: "",
-            link: "",
-            file: "",
-          },
-          comments: [],
-          likes: [],
-          dislikes: [],
-        },
-      ]),
+      body: JSON.stringify(posts),
     });
   });
 
@@ -56,6 +59,18 @@ test("signed-out home feed renders without obvious runtime errors", async ({ pag
   await expect(
     page.getByText("A public signed-out feed item rendered from a mocked local backend response.")
   ).toBeVisible();
+  await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
+});
+
+test("empty signed-out feed shows the first-user create cue", async ({ page }) => {
+  await mockPublicBackend(page, []);
+  await page.goto("/");
+
+  await expect(page.getByText("No posts yet.")).toBeVisible();
+  await expect(
+    page.getByText("Start the commons with a post, proposal, image, or AI delegate draft.")
+  ).toBeVisible();
+  await expect(page.getByRole("main").getByRole("button", { name: "Create post" })).toBeVisible();
   await expect(page.locator("body")).not.toContainText(obviousRuntimeErrors);
 });
 
