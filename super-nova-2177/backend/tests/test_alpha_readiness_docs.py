@@ -149,6 +149,65 @@ class AlphaReadinessDocsTests(unittest.TestCase):
         ]:
             self.assertIn(expected, signoff)
 
+    def test_alpha_release_readiness_bundle_documents_release_gates(self):
+        readiness = (REPO_ROOT / "ALPHA_RELEASE_READINESS.md").read_text(encoding="utf-8")
+        evidence = (REPO_ROOT / "ALPHA_MANUAL_SMOKE_EVIDENCE_SHEET.md").read_text(
+            encoding="utf-8"
+        )
+        preflight = (REPO_ROOT / "DEPLOYMENT_MEDIA_PREFLIGHT.md").read_text(encoding="utf-8")
+        branch = (REPO_ROOT / "BRANCH_PROTECTION_ROLLOUT_STATUS.md").read_text(
+            encoding="utf-8"
+        )
+
+        for expected in [
+            "FE7 lint",
+            "FE7 build",
+            "Mocked FE7 E2E",
+            "Real-backend public E2E",
+            "Backend compile",
+            "check_safe.py --local-only",
+            "Full safe check",
+            "Protected core zero-diff",
+            "Manual Browser Smoke Gate",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
+            "DEPLOYMENT_MEDIA_PREFLIGHT.md",
+            "NEXT_PUBLIC_API_URL",
+            "UPLOADS_DIR",
+            "Rollback Gate",
+        ]:
+            self.assertIn(expected, readiness)
+
+        for expected in [
+            "PASS",
+            "FAIL",
+            "BLOCKED",
+            "NOT RUN",
+            "Signed-out public feed",
+            "Upload image",
+            "Create AI delegate",
+            "Approve AI review",
+            "Mobile AI modal",
+        ]:
+            self.assertIn(expected, evidence)
+
+        for expected in [
+            "super-nova-2177/frontend-social-seven",
+            "super-nova-2177/backend/app.py",
+            "app.py",
+            "DATABASE_URL",
+            "UPLOADS_DIR",
+            "Uploaded images and files are runtime state, not git state",
+            "cannot be reconstructed",
+            "/proposals?filter=latest&limit=30",
+            "data:image/...",
+        ]:
+            self.assertIn(expected, preflight)
+
+        self.assertIn("not verified as", branch)
+        self.assertIn("enabled in GitHub settings", branch)
+        self.assertIn("advisory checks", branch)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -36,6 +36,17 @@ These jobs cover focused backend deterministic tests, FE7 lint/build, the local
 safe check, and protected core zero-diff. Keep live/network smoke checks advisory
 for now because they depend on deployment and public network availability.
 
+## Alpha Release Readiness Note
+
+As of the alpha readiness bundle, branch protection is still not verified as
+enabled in GitHub settings. Treat this document as rollout instructions only
+until someone manually confirms the repository settings.
+
+For an alpha release, the two checks above are the only recommended required
+branch checks. Mocked Playwright, real-backend Playwright, full live/network
+smoke, and deployment smoke should remain release evidence and advisory checks,
+not required branch-protection gates yet.
+
 Rollback for an accidentally over-strict setup: remove the required checks in
 GitHub branch protection settings. Local emergency runtime rollback for alpha
 rate-limit problems remains `SUPERNOVA_RATE_LIMIT_ENABLED=false`.
