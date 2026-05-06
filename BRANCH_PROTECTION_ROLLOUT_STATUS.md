@@ -45,6 +45,22 @@ As of the alpha readiness bundle, branch protection is still not verified as
 enabled in GitHub settings. Treat this document as rollout instructions only
 until someone manually confirms the repository settings.
 
+## 2026-05-06 Verification
+
+The owner asked to protect the branch during the alpha preview gate pass. The
+workflow/check names are present and branch-protection-ready:
+
+- `Backend local deterministic checks`
+- `FE7 local deterministic checks`
+
+Public GitHub branch metadata for `BP-H/SN-2` `master` reported
+`protected: false` and required status check enforcement `off` on 2026-05-06.
+This workspace could not enable branch protection directly because `gh` is not
+installed, no GitHub token is present in the environment, and the available
+GitHub connector tools do not expose branch protection or repository ruleset
+mutation. The remaining action is still manual GitHub settings setup with the
+two checks above.
+
 For an alpha release, the two checks above are the only recommended required
 branch checks. Mocked Playwright, real-backend Playwright, full live/network
 smoke, and deployment smoke should remain release evidence and advisory checks,

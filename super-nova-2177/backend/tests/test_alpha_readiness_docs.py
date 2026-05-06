@@ -352,6 +352,52 @@ class AlphaReadinessDocsTests(unittest.TestCase):
         for row in detailed_rows:
             self.assertIn(f"| {row} | NOT RUN |", signoff)
 
+    def test_preview_release_smoke_records_gate_verification_and_branch_protection_status(self):
+        preview = (REPO_ROOT / "PREVIEW_RELEASE_SMOKE_2026-05-06.md").read_text(
+            encoding="utf-8"
+        )
+        branch = (REPO_ROOT / "BRANCH_PROTECTION_ROLLOUT_STATUS.md").read_text(
+            encoding="utf-8"
+        )
+
+        for expected in [
+            "Preview Release Smoke - 2026-05-06",
+            "b466d5063b9a8f14903937942b86ddf13a51834d",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
+            "super-nova-2177/frontend-social-seven",
+            "super-nova-2177/backend/app.py",
+            "Preview/deploy URL: `NOT PROVIDED`",
+            "FE7 lint",
+            "FE7 build",
+            "Mocked FE7 E2E",
+            "Real-backend public FE7 E2E",
+            "scripts/public_data_snapshot.py http://127.0.0.1:8000",
+            "30 sampled proposals",
+            "protected: false",
+            "required status check enforcement `off`",
+            "no `gh` CLI",
+            "No GitHub token",
+            "no connector tool",
+            "SN-1 sync was not performed",
+            "Git does not carry DB rows",
+            "uploaded image bytes",
+            "Controlled alpha/preview remains `GO`",
+        ]:
+            self.assertIn(expected, preview)
+
+        for expected in [
+            "2026-05-06 Verification",
+            "protected: false",
+            "required status check enforcement `off`",
+            "gh` is not",
+            "no GitHub token",
+            "do not expose branch protection",
+            "Backend local deterministic checks",
+            "FE7 local deterministic checks",
+        ]:
+            self.assertIn(expected, branch)
+
 
 if __name__ == "__main__":
     unittest.main()
